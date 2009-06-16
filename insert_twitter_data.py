@@ -5,6 +5,8 @@ import urllib2
 import json
 import time
 
+from collections import defaultdict
+
 from utils import with_thrift, get_followers
 
 from cassandra.ttypes import batch_mutation_t, column_t, superColumn_t
@@ -111,11 +113,19 @@ def import_tweets(client, usernames):
         print 'Importing tweets for %s' % (username,)
         url = 'http://twitter.com/statuses/user_timeline/%s.json' % (username,)
         
-        tweets = json.loads(urllib2.urlopen(url).read())
         user_tweet_columns = []
+        user_id = None
+        followers = None
+        follower_columns = defaultdict(lambda: [])
+        
+        tweets = json.loads(urllib2.urlopen(url).read())
+        
         for tweet in tweets:
             user = tweet.pop('user', None)
-            user_id = str(user['id'])
+            
+            if user_id is None:
+                user_id = str(user['id'])
+                followers = map(str, get_followers(user_id))
             
             tweet['user_id'] = user['id']
             
@@ -147,18 +157,29 @@ def import_tweets(client, usernames):
                 timestamp=created_at_in_seconds
             ))
             
-            for follower in get_followers(user['id']):
-                col = 'tweet_edges:friend_tweets:%s' % (tweet_id,)
-                # TODO: Do this in a batch
-                client.insert('TwitterClone', str(follower), col, tweet_id,
-                    created_at_in_seconds, True)
+            for follower in followers:
+                follower_columns[follower].append(column_t(
+                    columnName=tweet_id,
+                    value=tweet_id,
+                    timestamp=created_at_in_seconds
+                ))
+        
+        for follower, columns in follower_columns.iteritems():
+            supercolumn = superColumn_t(
+                name='friend_tweets',
+                columns=columns
+            )
+            client.batch_insert_superColumn(batch_mutation_t(
+                table='TwitterClone',
+                key=follower,
+                cfmap={'tweet_edges': [supercolumn]}
+            ), True)
         
         if user_tweet_columns:
             supercolumn = superColumn_t(
                 name='user_tweets',
                 columns=user_tweet_columns
             )
-
             client.batch_insert_superColumn(batch_mutation_t(
                 table='TwitterClone',
                 key=user_id,

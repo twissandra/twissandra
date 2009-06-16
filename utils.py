@@ -22,6 +22,18 @@ def with_thrift(host='localhost', port=9160):
         return __inner
     return _inner
 
+def _get_user(client, user_id):
+    try:
+        cols = client.get_slice('TwitterClone', str(user_id), 'users', -1, -1)
+    except (NotFoundException, IndexError):
+        return None
+    user = {}
+    for col in cols:
+        user[col.columnName] = col.value.decode('utf-8')
+    return user
+
+get_user = with_thrift()(_get_user)
+
 
 def _get_user_id(client, username):
     try:
