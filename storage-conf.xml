@@ -58,7 +58,7 @@
          Achtung!  Changing this parameter requires wiping your data directories,
          since the partitioner can modify the sstable on-disk format.
     -->
-    <Partitioner>org.apache.cassandra.dht.OrderPreservingPartitioner</Partitioner>
+    <Partitioner>org.apache.cassandra.dht.RandomPartitioner</Partitioner>
 
     <!-- If you are using the OrderPreservingPartitioner and you know your key
          distribution, you can specify the token for this node to use.
