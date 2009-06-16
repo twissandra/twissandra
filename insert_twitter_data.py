@@ -5,7 +5,7 @@ import urllib2
 import json
 import time
 
-from utils import with_thrift, get_friends, get_followers
+from utils import with_thrift, get_followers
 
 from cassandra.ttypes import batch_mutation_t, column_t, superColumn_t
 
@@ -112,7 +112,6 @@ def import_tweets(client, usernames):
         url = 'http://twitter.com/statuses/user_timeline/%s.json' % (username,)
         
         tweets = json.loads(urllib2.urlopen(url).read())
-        supercolumns = []
         user_tweet_columns = []
         for tweet in tweets:
             user = tweet.pop('user', None)
@@ -148,30 +147,22 @@ def import_tweets(client, usernames):
                 timestamp=created_at_in_seconds
             ))
             
-            friend_tweet_columns = []
             for follower in get_followers(user['id']):
-                friend_tweet_columns.append(column_t(
-                    columnName=tweet_id,
-                    value=tweet_id,
-                    timestamp=created_at_in_seconds
-                ))
-            if friend_tweet_columns:
-                supercolumns.append(superColumn_t(
-                    name='friend_tweets',
-                    columns=friend_tweet_columns
-                ))
+                col = 'tweet_edges:friend_tweets:%s' % (tweet_id,)
+                # TODO: Do this in a batch
+                client.insert('TwitterClone', str(follower), col, tweet_id,
+                    created_at_in_seconds, True)
         
         if user_tweet_columns:
-            supercolumns.append(superColumn_t(
+            supercolumn = superColumn_t(
                 name='user_tweets',
                 columns=user_tweet_columns
-            ))
+            )
 
-        if supercolumns:
             client.batch_insert_superColumn(batch_mutation_t(
                 table='TwitterClone',
                 key=user_id,
-                cfmap={'tweet_edges': supercolumns}
+                cfmap={'tweet_edges': [supercolumn]}
             ), True)
 
 def main():
