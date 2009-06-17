@@ -1,3 +1,5 @@
+import time
+
 from thrift.transport import TSocket, TTransport
 from thrift.protocol import TBinaryProtocol
 
@@ -100,3 +102,43 @@ def _get_tweets(client, user_id, offset=0, limit=20):
     return [_get_tweet(client, t.value) for t in cols]
 
 get_tweets = with_thrift()(_get_tweets)
+
+
+def _friend_user(client, from_user_id, to_user_id, block=True):
+    tdt = time.time()
+    
+    friend_key = 'user_edges:friends:%s' % (str(to_user_id),)
+    client.insert('TwitterClone', str(from_user_id), friend_key,
+        str(to_user_id), tdt, block)
+
+    followers_key = 'user_edges:followers:%s' % (str(from_user_id),)
+    client.insert('TwitterClone', str(to_user_id), friend_key,
+        str(from_user_id), tdt, block)
+
+friend_user = with_thrift()(_friend_user)
+
+
+def _unfriend_user(client, from_user_id, to_user_id, block=True):
+    friend_key = 'user_edges:friends:%s' % (str(to_user_id),)
+    try:
+        col = client.get_superColumn('TwitterClone', str(from_user_id),
+            friend_key).columns[0]
+        client.remove('TwitterClone', str(from_user_id), friend_key,
+            col.timestamp, block)
+    except (NotFoundException, IndexError):
+        pass
+    
+    followers_key = 'user_edges:followers:%s' % (str(from_user_id),)
+    try:
+        col = client.get_superColumn('TwitterClone', str(to_user_id),
+            followers_key).columns[0]
+        client.remove('TwitterClone', str(to_user_id), followers_key,
+            col.timestamp, block)
+    except (NotFoundException, IndexError):
+        pass
+
+unfriend_user = with_thrift()(_unfriend_user)
+
+
+def _tweet(client, from_user_id, tweet):
+    pass
