@@ -80,20 +80,21 @@ def _get_tweet(client, tweet_id):
 get_tweet = with_thrift()(_get_tweet)
 
 
-def _get_timeline(client, user_id):
+def _get_timeline(client, user_id, offset=0, limit=20):
     try:
         cols = client.get_slice_super('TwitterClone', str(user_id),
-            'tweet_edges:user_tweets', -1, -1)[0].columns
+            'tweet_edges:user_tweets', offset, limit)[0].columns
     except (NotFoundException, IndexError):
         return []
     return [_get_tweet(client, t.value) for t in cols]
 
 get_timeline = with_thrift()(_get_timeline)
 
-def _get_tweets(client, user_id):
+
+def _get_tweets(client, user_id, offset=0, limit=20):
     try:
         cols = client.get_slice_super('TwitterClone', str(user_id),
-            'tweet_edges:friend_tweets', -1, -1)[0].columns
+            'tweet_edges:friend_tweets', offset, limit)[0].columns
     except (NotFoundException, IndexError):
         return []
     return [_get_tweet(client, t.value) for t in cols]

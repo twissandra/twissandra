@@ -2,8 +2,8 @@ import sys
 
 from pprint import pprint
 
-from utils import with_thrift, get_user_id, get_friends, get_followers
-from utils import get_timeline, get_tweets, get_user
+from database import with_thrift, get_user_id, get_friends, get_followers
+from database import get_timeline, get_tweets, get_user
 
 def main():
     username = sys.argv[1]

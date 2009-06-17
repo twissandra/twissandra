@@ -7,7 +7,7 @@ import time
 
 from collections import defaultdict
 
-from utils import with_thrift, get_followers
+from database import with_thrift, get_followers
 
 from cassandra.ttypes import batch_mutation_t, column_t, superColumn_t
 
