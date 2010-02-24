@@ -162,7 +162,7 @@ def save_tweet(tweet_id, user_id, tweet):
     tweet['_ts'] = raw_ts
     encoded = dict(((k, json.dumps(v)) for k, v in tweet.iteritems()))
     TWEET.insert(str(tweet_id), encoded)
-    USERLINE.insert(str(tweet_id), {ts: str(tweet_id)})
+    USERLINE.insert(str(user_id), {ts: str(tweet_id)})
     follower_ids = [user_id] + get_follower_ids(user_id)
     for follower_id in follower_ids:
         TIMELINE.insert(str(follower_id), {ts: str(tweet_id)})
