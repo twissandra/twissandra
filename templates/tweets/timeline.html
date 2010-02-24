@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+    {% if request.user.is_authenticated %}
+        <form method="POST">
+            {{ form.body }}
+            <input type="submit" value="Post Tweet" />
+        </form>
+    {% else %}
+        <a href="{% url login %}">Log in to post a tweet</a>
+    {% endif %}
+    <ul>
+        {% for tweet in tweets %}
+            <li>
+                <span class="username">{{ tweet.user.username }}</span>
+                <span class="body">{{ tweet.body }}</span>
+            </li>
+        {% empty %}
+            <li>There are no tweets yet.  Make sure to post one!</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

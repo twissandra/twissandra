@@ -3,6 +3,7 @@ from django.conf import settings
 
 urlpatterns = patterns('',
     url('^auth/', include('users.urls')),
+    url('', include('tweets.urls')),
 )
 
 if settings.DEBUG:

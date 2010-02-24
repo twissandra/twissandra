@@ -65,15 +65,26 @@ def _get_friend_or_follower_ids(cf, user_id, count):
 def _get_userline_or_timeline(cf, user_id, start, limit):
     start = _long(start) if start else ''
     try:
-        timeline = cf.get(str(user_id), column_start=start, column_count=limit)
+        timeline = cf.get(str(user_id), column_start=start, column_count=limit,
+            column_reversed=True)
     except NotFoundException:
         return []
-    tweets = TWEET.multiget(map(str, timeline.values()))
+    tweets = TWEET.multiget(timeline.values())
+    tweets = dict(((json.loads(t['id']), t) for t in tweets.values()))
+    print tweets
     decoded = []
-    for tweet in tweets.values():
+    for tweet_id in timeline.values():
+        print tweet_id
+        tweet = tweets.get(tweet_id)
+        if not tweet:
+            continue
         decoded.append(
             dict(((k, json.loads(v)) for k, v in tweet.iteritems()))
         )
+    users = get_users_for_user_ids([u['user_id'] for u in decoded])
+    users = dict(((u['id'], u) for u in users))
+    for tweet in decoded:
+        tweet['user'] = users.get(tweet['user_id'])
     return decoded
 
 

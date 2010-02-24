@@ -5,6 +5,7 @@ def get_user(request):
         try:
             user = get_user_by_id(request.session['user_id'])
             user['is_authenticated'] = True
+            return user
         except DatabaseError:
             pass
     return {
