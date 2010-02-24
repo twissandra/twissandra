@@ -6,6 +6,15 @@
 		<meta name="description" content="{% block description %}Twissandra is an example Twitter implementation, using Cassandra{% endblock %}" />
 	</head>
 	<body>
+	    <ul id="nav">
+	        <li><a href="{% url timeline %}">Home</a></li>
+	        <li><a href="{% url find_friends %}">Find Friends</a></li>
+	        {% if request.user.is_authenticated %}
+	            <li><a href="{% url logout %}">Sign out of {{ request.user.username }}</a></li>
+	        {% else %}
+	            <li><a href="{% url login %}">Login</a></li>
+	        {% endif %}
+	    </ul>
 	    {% block content %}
 	    {% endblock %}
 	</body>

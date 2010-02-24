@@ -3,19 +3,25 @@
 {% block content %}
     <h2>Sign In</h2>
     <form method="POST">
-        <input type="hidden" name="kind" value="login" />
         <ul>
             {{ login_form.as_ul }}
         </ul>
+        <input type="hidden" name="kind" value="login" />
+        {% if next %}
+            <input type="hidden" name="next" value="{{ next }}" />
+        {% endif %}
         <input type="submit" value="Sign In" />
     </form>
     
     <h2>Sign Up</h2>
     <form method="POST">
-        <input type="hidden" name="kind" value="register" />
         <ul>
             {{ register_form.as_ul }}
         </ul>
+        <input type="hidden" name="kind" value="register" />
+        {% if next %}
+            <input type="hidden" name="next" value="{{ next }}" />
+        {% endif %}
         <input type="submit" value="Sign Up" />
     </form>
 {% endblock %}

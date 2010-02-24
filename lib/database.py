@@ -60,7 +60,7 @@ def _get_friend_or_follower_ids(cf, user_id, count):
         friends = cf.get(str(user_id), column_count=count)
     except NotFoundException:
         return []
-    return map(long, friends.values())
+    return friends.values()
 
 def _get_userline_or_timeline(cf, user_id, start, limit):
     start = _long(start) if start else ''
@@ -175,7 +175,9 @@ def add_friends(from_user, to_users):
         FOLLOWERS.insert(str(to_user_id), {ts: str(from_user)})
 
 def remove_friends(from_user, to_users):
+    # TODO: This doesn't work, we need to figure out the timestamp and delete
+    #       by that.
     for user_id in to_users:
-        FRIENDS.remove(str(from_user), column=_long(user_id))
+        FRIENDS.remove(str(from_user), column=_long(user_id_ts))
     for to_user_id in to_users:
-        FOLLOWERS.remove(str(to_user_id), column=_long(from_user))
+        FOLLOWERS.remove(str(to_user_id), column=_long(from_user_ts))
