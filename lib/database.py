@@ -16,7 +16,8 @@ except ImportError:
 __all__ = ['get_user_by_id', 'get_user_by_username', 'get_friend_ids',
     'get_follower_ids', 'get_users_for_user_ids', 'get_friends',
     'get_followers', 'get_timeline', 'get_userline', 'get_tweet', 'save_user',
-    'save_tweet', 'add_friends', 'remove_friends']
+    'save_tweet', 'add_friends', 'remove_friends', 'DatabaseError',
+    'NotFound', 'InvalidDictionary']
 
 CLIENT = pycassa.connect_thread_local(framed_transport=True)
 
@@ -79,11 +80,17 @@ def _get_userline_or_timeline(cf, user_id, start, limit):
 # QUERYING APIs
 
 def get_user_by_id(user_id):
-    user = USER.get(str(user_id))
+    try:
+        user = USER.get(str(user_id))
+    except NotFoundException:
+        raise NotFound('User %s not found' % (user_id,))
     return dict(((k, json.loads(v)) for k, v in user.iteritems()))
 
 def get_user_by_username(username):
-    record = USERNAME.get(username.encode('utf-8'))
+    try:
+        record = USERNAME.get(username.encode('utf-8'))
+    except NotFoundException:
+        raise NotFound('User %s not found' % (username,))
     if 'id' not in record:
         raise NotFound('Username %s not found' % (username,))
     return get_user_by_id(record['id'])
@@ -95,7 +102,10 @@ def get_follower_ids(user_id, count=5000):
     return _get_friend_or_follower_ids(FOLLOWERS, user_id, count)
 
 def get_users_for_user_ids(user_ids):
-    users = USER.multiget(map(str, user_ids))
+    try:
+        users = USER.multiget(map(str, user_ids))
+    except NotFoundException:
+        raise NotFound('Users %s not found' % (user_ids,))
     decoded = []
     for user in users.values():
         decoded.append(
@@ -118,7 +128,10 @@ def get_userline(user_id, start=None, limit=40):
     return _get_userline_or_timeline(USERLINE, user_id, start, limit)
 
 def get_tweet(tweet_id):
-    tweet = TWEET.get(str(tweet_id))
+    try:
+        tweet = TWEET.get(str(tweet_id))
+    except NotFoundException:
+        raise NotFound('Tweet %s not found' % (tweet_id,))
     try:
         return dict(((k, json.loads(v)) for k, v in tweet.iteritems()))
     except IndexError:
@@ -130,8 +143,8 @@ def get_tweet(tweet_id):
 def save_user(user_id, user):
     encoded = dict(((k, json.dumps(v)) for k, v in user.iteritems()))
     USER.insert(str(user_id), encoded)
-    if 'screen_name' in user:
-        key = user['screen_name'].encode('utf-8')
+    if 'username' in user:
+        key = user['username'].encode('utf-8')
         USERNAME.insert(key, {'id': str(user_id)})
 
 def save_tweet(tweet_id, user_id, tweet):

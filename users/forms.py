@@ -1,0 +1,61 @@
+import uuid
+
+from django import forms
+
+from lib.database import get_user_by_username, save_user, DatabaseError
+
+class LoginForm(forms.Form):
+    username = forms.CharField(max_length=30)
+    password = forms.CharField(widget=forms.PasswordInput(render_value=False))
+    
+    def clean(self):
+        username = self.cleaned_data['username']
+        password = self.cleaned_data['password']
+        try:
+            user = get_user_by_username(username)
+        except DatabaseError:
+            raise forms.ValidationError(u'Invalid username and/or password')
+        if user.get('password') != password:
+            raise forms.ValidationError(u'Invalid username and/or password')
+        return self.cleaned_data
+    
+    def get_user_id(self):
+        username = self.cleaned_data['username']
+        user = get_user_by_username(username)
+        return user['id']
+
+
+class RegistrationForm(forms.Form):
+    username = forms.RegexField(regex=r'^\w+$', max_length=30)
+    password1 = forms.CharField(widget=forms.PasswordInput(render_value=False))
+    password2 = forms.CharField(widget=forms.PasswordInput(render_value=False))
+    
+    def clean_username(self):
+        username = self.cleaned_data['username']
+        try:
+            get_user_by_username(username)
+            raise forms.ValidationError(u'Username is already taken')
+        except DatabaseError:
+            pass
+        return username
+    
+    def clean(self):
+        if ('password1' in self.cleaned_data and 'password2' in 
+            self.cleaned_data):
+            password1 = self.cleaned_data['password1']
+            password2 = self.cleaned_data['password2']
+            if password1 != password2:
+                raise forms.ValidationError(
+                    u'You must type the same password each time')
+        return self.cleaned_data
+    
+    def save(self):
+        user_id = str(uuid.uuid1())
+        username = self.cleaned_data['username']
+        password = self.cleaned_data['password1']
+        save_user(user_id, {
+            'id': user_id,
+            'username': username,
+            'password': password,
+        })
+        return user_id

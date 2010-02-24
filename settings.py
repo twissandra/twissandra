@@ -70,7 +70,7 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.transaction.TransactionMiddleware',
+    'users.middleware.UserMiddleware',
 )
 
 ROOT_URLCONF = 'urls'
