@@ -3,7 +3,7 @@
 {% block content %}
     <h2>Add Friends</h2>
     <form method="GET">
-        <input type="text" name="q" />
+        <input type="text" name="q" value="{% if q %}{{ q }}{% endif %}" />
         <input type="submit" value="Search" />
     </form>
     <div>
@@ -12,7 +12,7 @@
                 <p>Hooray, your friend {{ result.username }} is on the site!</p>
                 {% if request.user.is_authenticated %}
                     {% if not result.friend %}
-                        <form method="POST" action="{{ request.path }}">
+                        <form method="POST" action="{% url modify_friend %}?next={{ request.path }}">
                             <input type="hidden" name="{% if result.friend %}remove{% else %}add{% endif %}-friend" value="{{ result.id }}" />
                             <input type="submit" value="{% if result.friend %}Remove{% else %}Add{% endif %} Friend" />
                         </form>
@@ -36,7 +36,7 @@
             <p>{{ user.username }}</p>
             {% if request.user.is_authenticated %}
                 {% if not user.friend %}
-                    <form method="POST" action="{{ request.path }}">
+                    <form method="POST" action="{% url modify_friend %}?next={{ request.path }}">
                         <input type="hidden" name="{% if user.friend %}remove{% else %}add{% endif %}-friend" value="{{ user.id }}" />
                         <input type="submit" value="{% if user.friend %}Remove{% else %}Add{% endif %} Friend" />
                     </form>

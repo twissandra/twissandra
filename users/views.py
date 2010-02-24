@@ -44,7 +44,7 @@ def logout(request):
 def find_friends(request):
     friend_ids = []
     if request.user['is_authenticated']:
-        friend_ids = get_friend_ids(request.user['id'])
+        friend_ids = get_friend_ids(request.user['id']) + [request.user['id']]
     q = request.GET.get('q')
     result = None
     searched = False
@@ -55,13 +55,6 @@ def find_friends(request):
             result['friend'] = result['id'] in friend_ids
         except DatabaseError:
             pass
-    if request.user['is_authenticated']:
-        if 'add-friend' in request.POST:
-            add_friends(request.user['id'], [request.POST['add-friend']])
-            return HttpResponseRedirect(request.path)
-        elif 'remove-friend' in request.POST:
-            remove_friends(request.user['id'], [request.POST['remove-friend']])
-            return HttpResponseRedirect(request.path)
     context = {
         'q': q,
         'result': result,
@@ -69,4 +62,24 @@ def find_friends(request):
         'friend_ids': friend_ids,
     }
     return render_to_response('users/add_friends.html', context,
+        context_instance=RequestContext(request))
+
+def modify_friend(request):
+    next = request.REQUEST.get('next')
+    added = False
+    removed = False
+    if request.user['is_authenticated']:
+        if 'add-friend' in request.POST:
+            add_friends(request.user['id'], [request.POST['add-friend']])
+            added = True
+        if 'remove-friend' in request.POST:
+            remove_friends(request.user['id'], [request.POST['remove-friend']])
+            removed = True
+    if next:
+        return HttpResponseRedirect(next)
+    context = {
+        'added': added,
+        'removed': removed,
+    }
+    return render_to_response('users/modify_friend.html', context,
         context_instance=RequestContext(request))
