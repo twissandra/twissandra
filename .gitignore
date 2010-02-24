@@ -6,3 +6,4 @@ pip-log.txt
 *~
 dist/
 twissandra.egg-info/
+dev.db
