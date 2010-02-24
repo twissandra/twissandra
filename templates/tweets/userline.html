@@ -1,18 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-    {% if request.user.is_authenticated %}
-        <form method="POST">
-            {{ form.body }}
-            <input type="submit" value="Post Tweet" />
-        </form>
-    {% else %}
-        <a href="{% url login %}">Log in to post a tweet</a>
-    {% endif %}
+    <h2>{{ user.username }}&rsquo;s Tweets</h2>
     <ul>
         {% for tweet in tweets %}
             <li>
-                <a href="{% url userline tweet.user.username %}">{{ tweet.user.username }}</a>
+                <span class="username">{{ tweet.user.username }}</span>
                 <span class="body">{{ tweet.body }}</span>
             </li>
         {% empty %}

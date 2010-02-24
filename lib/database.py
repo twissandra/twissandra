@@ -71,10 +71,8 @@ def _get_userline_or_timeline(cf, user_id, start, limit):
         return []
     tweets = TWEET.multiget(timeline.values())
     tweets = dict(((json.loads(t['id']), t) for t in tweets.values()))
-    print tweets
     decoded = []
     for tweet_id in timeline.values():
-        print tweet_id
         tweet = tweets.get(tweet_id)
         if not tweet:
             continue
@@ -159,7 +157,9 @@ def save_user(user_id, user):
         USERNAME.insert(key, {'id': str(user_id)})
 
 def save_tweet(tweet_id, user_id, tweet):
-    ts = _long(int(time.time() * 1e6))
+    raw_ts = int(time.time() * 1e6)
+    ts = _long(raw_ts)
+    tweet['_ts'] = raw_ts
     encoded = dict(((k, json.dumps(v)) for k, v in tweet.iteritems()))
     TWEET.insert(str(tweet_id), encoded)
     USERLINE.insert(str(tweet_id), {ts: str(tweet_id)})
