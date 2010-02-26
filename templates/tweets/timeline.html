@@ -11,6 +11,8 @@
             <input type="submit" value="Post Tweet" class="grid_3 omega">
             <div class="clear"></div>
         </form>
+    {% else %}
+        <h2 class="grid_4 suffix_5">Public Timeline</h2>
     {% endif %}
     <ul id="timeline" class="grid_9 alpha">
         {% for tweet in tweets %}
