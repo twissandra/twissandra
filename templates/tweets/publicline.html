@@ -3,10 +3,11 @@
 {% block title %}Public Timeline - {{ block.super }}{% endblock %}
 
 {% block content %}
-    <ul>
+    <h2 class="grid_4 suffix_5">Public Timeline</h2>
+    <ul id="timeline" class="grid_9 alpha">
         {% for tweet in tweets %}
             <li>
-                <a href="{% url userline tweet.user.username %}">{{ tweet.user.username }}</a>
+                <a href="{% url userline tweet.user.username %}" class="username">{{ tweet.user.username }}</a>
                 <span class="body">{{ tweet.body }}</span>
             </li>
         {% empty %}

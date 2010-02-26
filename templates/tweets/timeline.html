@@ -4,17 +4,18 @@
 
 {% block content %}
     {% if request.user.is_authenticated %}
-        <form method="POST">
-            {{ form.body }}
-            <input type="submit" value="Post Tweet" />
+        <form method="POST" id="poster">
+            <div class="grid_9 alpha">
+                <textarea maxlength="140" name="body" type="text" id="id_body"></textarea>
+            </div>
+            <input type="submit" value="Post Tweet" class="grid_3 omega">
+            <div class="clear"></div>
         </form>
-    {% else %}
-        <a href="{% url login %}">Log in to post a tweet</a>
     {% endif %}
-    <ul>
+    <ul id="timeline" class="grid_9 alpha">
         {% for tweet in tweets %}
             <li>
-                <a href="{% url userline tweet.user.username %}">{{ tweet.user.username }}</a>
+                <a href="{% url userline tweet.user.username %}" class="username">{{ tweet.user.username }}</a>
                 <span class="body">{{ tweet.body }}</span>
             </li>
         {% empty %}
@@ -23,5 +24,11 @@
     </ul>
     {% if next %}
         <a href="?start={{ next }}">More</a>
+    {% endif %}
+{% endblock %}
+
+{% block sidebar %}
+    {% if not request.user.is_authenticated %}
+        <a href="{% url login %}">Log in to post a tweet</a>
     {% endif %}
 {% endblock %}

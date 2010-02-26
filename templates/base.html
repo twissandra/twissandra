@@ -4,20 +4,40 @@
 		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 		<title>{% block title %}Twissandra{% endblock %}</title>
 		<meta name="description" content="{% block description %}Twissandra is an example Twitter implementation, using Cassandra{% endblock %}" />
+		<link href="{{ MEDIA_URL }}css/reset.css" rel="stylesheet" type="text/css" media="screen,projection" />
+		<link href="{{ MEDIA_URL }}css/960.css" rel="stylesheet" type="text/css" media="screen,projection" />
+		<link href="{{ MEDIA_URL }}css/text.css" rel="stylesheet" type="text/css" media="screen,projection" />
 		<link href="{{ MEDIA_URL }}css/screen.css" rel="stylesheet" type="text/css" media="screen,projection" />
 	</head>
 	<body>
-	    <ul id="nav">
-	        <li><a href="{% url timeline %}">Home</a></li>
-	        <li><a href="{% url publicline %}">Public</a></li>
-	        <li><a href="{% url find_friends %}">Find Friends</a></li>
-	        {% if request.user.is_authenticated %}
-	            <li><a href="{% url logout %}">Sign out of {{ request.user.username }}</a></li>
-	        {% else %}
-	            <li><a href="{% url login %}">Login</a></li>
-	        {% endif %}
-	    </ul>
-	    {% block content %}
-	    {% endblock %}
+	    <div class="container_12 clearfix">
+	        <div id="header">
+	            <div id="logo" class="grid_7">
+	                <a href="/">Twissandra</a>
+	            </div>
+        	    <ul id="nav" class="grid_5">
+        	        <li><a href="{% url timeline %}">Home</a></li>
+        	        <li><a href="{% url publicline %}">Public</a></li>
+        	        <li><a href="{% url find_friends %}">Find Friends</a></li>
+        	        {% if request.user.is_authenticated %}
+        	            <li><a href="{% url logout %}">Sign out of {{ request.user.username }}</a></li>
+        	        {% else %}
+        	            <li><a href="{% url login %}">Login</a></li>
+        	        {% endif %}
+        	    </ul>
+    	    </div>
+    	    <div class="clear"></div>
+    	    {% block content %}
+    	    {% endblock %}
+    	    <div id="sidebar" class="grid_3 omega">
+                <p>
+                    Twissandra is an example project, created to learn and demonstrate how to use
+                    Cassandra.  Running the project will present a website that has similar
+                    functionality to Twitter.
+                </p>
+                {% block sidebar %}
+                {% endblock %}
+            </div>
+	    </div>
 	</body>
 </html>

@@ -3,11 +3,11 @@
 {% block title %}{{ user.username }} - {{ block.super }}{% endblock %}
 
 {% block content %}
-    <h2>{{ user.username }}&rsquo;s Tweets</h2>
-    <ul>
+    <h2 class="grid_4 suffix_5">{{ user.username }}&rsquo;s Timeline</h2>
+    <ul id="timeline" class="grid_9 alpha">
         {% for tweet in tweets %}
             <li>
-                <span class="username">{{ tweet.user.username }}</span>
+                <a href="{% url userline tweet.user.username %}" class="username">{{ tweet.user.username }}</a>
                 <span class="body">{{ tweet.body }}</span>
             </li>
         {% empty %}
@@ -17,7 +17,9 @@
     {% if next %}
         <a href="?start={{ next }}">More</a>
     {% endif %}
-    
+{% endblock %}
+
+{% block sidebar %}
     {% if request.user.is_authenticated %}
         {% ifnotequal request.user.id user.id %}
             <form method="POST" action="{% url modify_friend %}?next={{ request.path }}">
