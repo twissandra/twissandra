@@ -4,8 +4,7 @@ from django.http import HttpResponseRedirect
 
 from users.forms import LoginForm, RegistrationForm
 
-from lib.database import get_user_by_username, add_friends, get_friend_ids
-from lib.database import remove_friends, DatabaseError
+import cass
 
 def login(request):
     login_form = LoginForm()
@@ -44,16 +43,17 @@ def logout(request):
 def find_friends(request):
     friend_ids = []
     if request.user['is_authenticated']:
-        friend_ids = get_friend_ids(request.user['id']) + [request.user['id']]
+        friend_ids = cass.get_friend_ids(request.user['id']) + [
+            request.user['id']]
     q = request.GET.get('q')
     result = None
     searched = False
     if q is not None:
         searched = True
         try:
-            result = get_user_by_username(q)
+            result = cass.get_user_by_username(q)
             result['friend'] = result['id'] in friend_ids
-        except DatabaseError:
+        except cass.DatabaseError:
             pass
     context = {
         'q': q,
@@ -70,10 +70,10 @@ def modify_friend(request):
     removed = False
     if request.user['is_authenticated']:
         if 'add-friend' in request.POST:
-            add_friends(request.user['id'], [request.POST['add-friend']])
+            cass.add_friends(request.user['id'], [request.POST['add-friend']])
             added = True
         if 'remove-friend' in request.POST:
-            remove_friends(request.user['id'], [request.POST['remove-friend']])
+            cass.remove_friends(request.user['id'], [request.POST['remove-friend']])
             removed = True
     if next:
         return HttpResponseRedirect(next)

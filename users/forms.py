@@ -2,7 +2,7 @@ import uuid
 
 from django import forms
 
-from lib.database import get_user_by_username, save_user, DatabaseError
+import cass
 
 class LoginForm(forms.Form):
     username = forms.CharField(max_length=30)
@@ -12,8 +12,8 @@ class LoginForm(forms.Form):
         username = self.cleaned_data['username']
         password = self.cleaned_data['password']
         try:
-            user = get_user_by_username(username)
-        except DatabaseError:
+            user = cass.get_user_by_username(username)
+        except cass.DatabaseError:
             raise forms.ValidationError(u'Invalid username and/or password')
         if user.get('password') != password:
             raise forms.ValidationError(u'Invalid username and/or password')
@@ -21,7 +21,7 @@ class LoginForm(forms.Form):
     
     def get_user_id(self):
         username = self.cleaned_data['username']
-        user = get_user_by_username(username)
+        user = cass.get_user_by_username(username)
         return user['id']
 
 
@@ -33,9 +33,9 @@ class RegistrationForm(forms.Form):
     def clean_username(self):
         username = self.cleaned_data['username']
         try:
-            get_user_by_username(username)
+            cass.get_user_by_username(username)
             raise forms.ValidationError(u'Username is already taken')
-        except DatabaseError:
+        except cass.DatabaseError:
             pass
         return username
     
@@ -53,7 +53,7 @@ class RegistrationForm(forms.Form):
         user_id = str(uuid.uuid1())
         username = self.cleaned_data['username']
         password = self.cleaned_data['password1']
-        save_user(user_id, {
+        cass.save_user(user_id, {
             'id': user_id,
             'username': username,
             'password': password,

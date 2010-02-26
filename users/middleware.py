@@ -1,12 +1,12 @@
-from lib.database import get_user_by_id, DatabaseError
+import cass
 
 def get_user(request):
     if 'user_id' in request.session:
         try:
-            user = get_user_by_id(request.session['user_id'])
+            user = cass.get_user_by_id(request.session['user_id'])
             user['is_authenticated'] = True
             return user
-        except DatabaseError:
+        except cass.DatabaseError:
             pass
     return {
         'username': None,

@@ -7,8 +7,7 @@ from django.core.urlresolvers import reverse
 
 from tweets.forms import TweetForm
 
-from lib.database import save_tweet, get_timeline, get_userline, get_friend_ids
-from lib.database import get_user_by_username, DatabaseError
+import cass
 
 NUM_PER_PAGE = 40
 
@@ -16,14 +15,14 @@ def timeline(request):
     form = TweetForm(request.POST or None)
     if request.user['is_authenticated'] and form.is_valid():
         tweet_id = str(uuid.uuid1())
-        save_tweet(tweet_id, request.user['id'], {
+        cass.save_tweet(tweet_id, request.user['id'], {
             'id': tweet_id,
             'user_id': request.user['id'],
             'body': form.cleaned_data['body'],
         })
         return HttpResponseRedirect(reverse('timeline'))
     start = request.GET.get('start')
-    tweets = get_timeline(request.user['id'], start=start,
+    tweets = cass.get_timeline(request.user['id'], start=start,
         limit=NUM_PER_PAGE + 1)
     next = None
     if tweets and len(tweets) == NUM_PER_PAGE + 1:
@@ -39,21 +38,21 @@ def timeline(request):
 
 def userline(request, username=None):
     try:
-        user = get_user_by_username(username)
-    except DatabaseError:
+        user = cass.get_user_by_username(username)
+    except cass.DatabaseError:
         raise Http404
     
     # Query for the friend ids
     friend_ids = []
     if request.user['is_authenticated']:
-        friend_ids = get_friend_ids(request.user['id']) + [request.user['id']]
+        friend_ids = cass.get_friend_ids(request.user['id']) + [request.user['id']]
     
     # Add a property on the user to indicate whether the currently logged-in
     # user is friends with the user
     user['friend'] = user['id'] in friend_ids
     
     start = request.GET.get('start')
-    tweets = get_userline(user['id'], start=start, limit=NUM_PER_PAGE + 1)
+    tweets = cass.get_userline(user['id'], start=start, limit=NUM_PER_PAGE + 1)
     next = None
     if tweets and len(tweets) == NUM_PER_PAGE + 1:
         next = tweets[-1]['_ts']
