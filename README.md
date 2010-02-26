@@ -47,7 +47,7 @@ put it in its proper place in the Cassandra directory structure:
 
 Finally we can start Cassandra:
 
-    cassandra -f
+    ./bin/cassandra -f
 
 This will run the Cassandra database (configured for Twissandra) in the
 foreground, so to continue, we'll need to open a new terminal.
