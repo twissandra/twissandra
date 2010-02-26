@@ -29,23 +29,4 @@
             <p>Enter a username above to see if they are on the site!</p>
         {% endif %}
     </div>
-    
-    {% for user in recent_users %}
-        <h3>Recent Users</h3>
-        <div>
-            <p>{{ user.username }}</p>
-            {% if request.user.is_authenticated %}
-                {% if not user.friend %}
-                    <form method="POST" action="{% url modify_friend %}?next={{ request.path }}">
-                        <input type="hidden" name="{% if user.friend %}remove{% else %}add{% endif %}-friend" value="{{ user.id }}" />
-                        <input type="submit" value="{% if user.friend %}Remove{% else %}Add{% endif %} Friend" />
-                    </form>
-                {% endif %}
-            {% else %}
-                <a href="{% url login %}?next={{ request.path }}&q={{ q }}">
-                    Login to add {{ user.username }} as a friend
-                </a>
-            {% endif %}
-        </div>
-    {% endfor %}
 {% endblock %}
