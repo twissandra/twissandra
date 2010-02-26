@@ -82,6 +82,9 @@ TEMPLATE_DIRS = (
     os.path.join(PROJECT_ROOT, 'templates'),
 )
 
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+CACHE_BACKEND = 'locmem:///'
+
 INSTALLED_APPS = (
     'django.contrib.sessions',
 )
