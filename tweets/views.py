@@ -36,6 +36,21 @@ def timeline(request):
     return render_to_response('tweets/timeline.html', context,
         context_instance=RequestContext(request))
 
+def publicline(request):
+    start = request.GET.get('start')
+    tweets = cass.get_userline(cass.PUBLIC_USERLINE_KEY, start=start,
+        limit=NUM_PER_PAGE + 1)
+    next = None
+    if tweets and len(tweets) == NUM_PER_PAGE + 1:
+        next = tweets[-1]['_ts']
+    tweets = tweets[:NUM_PER_PAGE]
+    context = {
+        'tweets': tweets,
+        'next': next,
+    }
+    return render_to_response('tweets/publicline.html', context,
+        context_instance=RequestContext(request))
+
 def userline(request, username=None):
     try:
         user = cass.get_user_by_username(username)

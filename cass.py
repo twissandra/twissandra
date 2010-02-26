@@ -17,7 +17,7 @@ __all__ = ['get_user_by_id', 'get_user_by_username', 'get_friend_ids',
     'get_follower_ids', 'get_users_for_user_ids', 'get_friends',
     'get_followers', 'get_timeline', 'get_userline', 'get_tweet', 'save_user',
     'save_tweet', 'add_friends', 'remove_friends', 'DatabaseError',
-    'NotFound', 'InvalidDictionary']
+    'NotFound', 'InvalidDictionary', 'PUBLIC_USERLINE_KEY']
 
 CLIENT = pycassa.connect_thread_local(framed_transport=True)
 
@@ -35,6 +35,8 @@ TIMELINE = pycassa.ColumnFamily(CLIENT, 'Twissandra', 'Timeline',
     dict_class=OrderedDict)
 USERLINE = pycassa.ColumnFamily(CLIENT, 'Twissandra', 'Userline',
     dict_class=OrderedDict)
+
+PUBLIC_USERLINE_KEY = '!PUBLIC!'
 
 
 class DatabaseError(Exception):
@@ -62,7 +64,7 @@ def _get_friend_or_follower_ids(cf, user_id, count):
         return []
     return friends.keys()
 
-def _get_userline_or_timeline(cf, user_id, start, limit):
+def _get_line(cf, user_id, start, limit):
     start = _long(start) if start else ''
     try:
         timeline = cf.get(str(user_id), column_start=start, column_count=limit,
@@ -131,10 +133,10 @@ def get_followers(user_id, count=5000):
     return get_users_for_user_ids(follower_ids)
 
 def get_timeline(user_id, start=None, limit=40):
-    return _get_userline_or_timeline(TIMELINE, user_id, start, limit)
+    return _get_line(TIMELINE, user_id, start, limit)
 
 def get_userline(user_id, start=None, limit=40):
-    return _get_userline_or_timeline(USERLINE, user_id, start, limit)
+    return _get_line(USERLINE, user_id, start, limit)
 
 def get_tweet(tweet_id):
     try:
@@ -163,6 +165,7 @@ def save_tweet(tweet_id, user_id, tweet):
     encoded = dict(((k, json.dumps(v)) for k, v in tweet.iteritems()))
     TWEET.insert(str(tweet_id), encoded)
     USERLINE.insert(str(user_id), {ts: str(tweet_id)})
+    USERLINE.insert(PUBLIC_USERLINE_KEY, {ts: str(tweet_id)})
     follower_ids = [user_id] + get_follower_ids(user_id)
     for follower_id in follower_ids:
         TIMELINE.insert(str(follower_id), {ts: str(tweet_id)})
