@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block title %}Friend Changed - {{ block.super }}{% endblock %}
+
 {% block content %}
     <h2>Friend successfully {% if added %}Added{% else %}Removed{% endif %}</h2>
     <p>The user has been {% if added %}added to{% else %}removed from{% endif %} your friends list.</p>

@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block title %}Public Timeline - {{ block.super }}{% endblock %}
+
 {% block content %}
     <ul>
         {% for tweet in tweets %}

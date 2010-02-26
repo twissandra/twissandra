@@ -1,0 +1,17 @@
+*, html, body, div, dl, dt, dd, ul, li, h1, h2, h3, h5, h5, h6, pre, form, label, fieldset, input, p, blockquote, th, td { margin:0; padding:0 }
+table {border-collapse:collapse;border-spacing:0;}
+fieldset, img {border:0}
+address, caption, cite, code, dfn, em, strong, th, var {font-style:normal;font-weight:normal;}
+caption, th {text-align:left;}
+h1, h2, h3, h5, h5, h6 {font-size:100%;}
+q:before, q:after {content:'';}
+ 
+/* Global reset-RESET */
+/* The below restores some sensible defaults */
+strong {font-weight:bold;}
+em {font-style:italic;font-weight:bold;}
+ul, li {list-style-position:outside;list-style:none;}
+ol li {list-style-position:inside;list-style:decimal;}
+* a {position:relative;} /* Gets links displaying over a PNG background */
+a {outline:none;} /* Gets rid of Firefox's dotted borders */
+a img {border:none;} /* Gets rid of IE's blue borders */
