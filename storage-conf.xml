@@ -100,8 +100,8 @@
       -->
       <ColumnFamily CompareWith="UTF8Type" Name="User"/>
       <ColumnFamily CompareWith="BytesType" Name="Username"/>
-      <ColumnFamily CompareWith="LongType" Name="Friends"/>
-      <ColumnFamily CompareWith="LongType" Name="Followers"/>
+      <ColumnFamily CompareWith="BytesType" Name="Friends"/>
+      <ColumnFamily CompareWith="BytesType" Name="Followers"/>
       <ColumnFamily CompareWith="UTF8Type" Name="Tweet"/>
       <ColumnFamily CompareWith="LongType" Name="Timeline"/>
       <ColumnFamily CompareWith="LongType" Name="Userline"/>

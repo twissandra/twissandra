@@ -60,7 +60,7 @@ def _get_friend_or_follower_ids(cf, user_id, count):
         friends = cf.get(str(user_id), column_count=count)
     except NotFoundException:
         return []
-    return friends.values()
+    return friends.keys()
 
 def _get_userline_or_timeline(cf, user_id, start, limit):
     start = _long(start) if start else ''
@@ -168,16 +168,14 @@ def save_tweet(tweet_id, user_id, tweet):
         TIMELINE.insert(str(follower_id), {ts: str(tweet_id)})
 
 def add_friends(from_user, to_users):
-    ts = _long(int(time.time() * 1e6))
-    dct = OrderedDict(((ts, str(user_id)) for user_id in to_users))
+    ts = str(int(time.time() * 1e6))
+    dct = OrderedDict(((str(user_id), ts) for user_id in to_users))
     FRIENDS.insert(str(from_user), dct)
     for to_user_id in to_users:
-        FOLLOWERS.insert(str(to_user_id), {ts: str(from_user)})
+        FOLLOWERS.insert(str(to_user_id), {str(from_user): ts})
 
 def remove_friends(from_user, to_users):
-    # TODO: This doesn't work, we need to figure out the timestamp and delete
-    #       by that.
     for user_id in to_users:
-        FRIENDS.remove(str(from_user), column=_long(user_id_ts))
+        FRIENDS.remove(str(from_user), column=str(user_id))
     for to_user_id in to_users:
-        FOLLOWERS.remove(str(to_user_id), column=_long(from_user_ts))
+        FOLLOWERS.remove(str(to_user_id), column=str(to_user_id))

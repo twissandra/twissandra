@@ -11,12 +11,12 @@
             {% if result %}
                 <p>Hooray, your friend {{ result.username }} is on the site!</p>
                 {% if request.user.is_authenticated %}
-                    {% if not result.friend %}
+                    {% ifnotequal request.user.id result.id %}
                         <form method="POST" action="{% url modify_friend %}?next={{ request.path }}">
                             <input type="hidden" name="{% if result.friend %}remove{% else %}add{% endif %}-friend" value="{{ result.id }}" />
                             <input type="submit" value="{% if result.friend %}Remove{% else %}Add{% endif %} Friend" />
                         </form>
-                    {% endif %}
+                    {% endifnotequal %}
                 {% else %}
                     <a href="{% url login %}?next={{ request.path }}&amp;q={{ q }}">
                         Login to add {{ result.username }} as a friend
