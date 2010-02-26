@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <ul>
+        {% for tweet in tweets %}
+            <li>
+                <a href="{% url userline tweet.user.username %}">{{ tweet.user.username }}</a>
+                <span class="body">{{ tweet.body }}</span>
+            </li>
+        {% empty %}
+            <li>There are no tweets yet.  Make sure to post one!</li>
+        {% endfor %}
+    </ul>
+    {% if next %}
+        <a href="?start={{ next }}">More</a>
+    {% endif %}
+{% endblock %}
