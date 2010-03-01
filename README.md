@@ -4,6 +4,8 @@ Twissandra is an example project, created to learn and demonstrate how to use
 Cassandra.  Running the project will present a website that has similar
 functionality to Twitter.
 
+Most of the magic happens in cass.py, so check that out.
+
 ## Installation
 
 Installing Twissandra is fairly straightforward.  Really it just involves
