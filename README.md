@@ -89,3 +89,83 @@ Make sure you're in the Twissandra checkout, and then start up the server:
     python manage.py runserver
 
 Now go to http://127.0.0.1:8000/ and you can play with Twissandra!
+
+## Schema Layout
+
+In Cassandra, the way that your data is structured is very closely tied to how
+how it will be retrieved.  Let's start with the user ColumnFamily. The key is
+a user id, and the columns are the properties on the user:
+
+    User = {
+        'a4a70900-24e1-11df-8924-001ff3591711': {
+            'id': 'a4a70900-24e1-11df-8924-001ff3591711',
+            'username': 'ericflo',
+            'password': '****',
+        },
+    }
+
+Since some of the URLs on the site actually have the username, we need to be
+able to map from the username to the user id:
+
+    Username = {
+        'ericflo': {
+            'id': 'a4a70900-24e1-11df-8924-001ff3591711',
+        },
+    }
+
+Friends and followers are keyed by the user id, and then the columns are the
+friend user id and follower user ids, and we store a timestamp as the value
+because it's interesting information to have:
+    
+    Friends = {
+        'a4a70900-24e1-11df-8924-001ff3591711': {
+            # friend id: timestamp of when the friendship was added
+            '10cf667c-24e2-11df-8924-001ff3591711': '1267413962580791',
+            '343d5db2-24e2-11df-8924-001ff3591711': '1267413990076949',
+            '3f22b5f6-24e2-11df-8924-001ff3591711': '1267414008133277',
+        },
+    }
+    
+    Followers = {
+        'a4a70900-24e1-11df-8924-001ff3591711': {
+            # friend id: timestamp of when the followership was added
+            '10cf667c-24e2-11df-8924-001ff3591711': '1267413962580791',
+            '343d5db2-24e2-11df-8924-001ff3591711': '1267413990076949',
+            '3f22b5f6-24e2-11df-8924-001ff3591711': '1267414008133277',
+        },
+    }
+
+Tweets are stored in a way similar to users:
+
+    Tweet = {
+        '7561a442-24e2-11df-8924-001ff3591711': {
+            'id': '89da3178-24e2-11df-8924-001ff3591711',
+            'user_id': 'a4a70900-24e1-11df-8924-001ff3591711',
+            'body': 'Trying out Twissandra. This is awesome!',
+            '_ts': '1267414173047880',
+        },
+    }
+
+The Timeline and Userline column families keep track of which tweets should
+appear, and in what order.  To that effect, the key is the user id, the column
+name is a timestamp, and the column value is the tweet id:
+
+    Timeline = {
+        'a4a70900-24e1-11df-8924-001ff3591711': {
+            # timestamp of tweet: tweet id
+            1267414247561777: '7561a442-24e2-11df-8924-001ff3591711',
+            1267414277402340: 'f0c8d718-24e2-11df-8924-001ff3591711',
+            1267414305866969: 'f9e6d804-24e2-11df-8924-001ff3591711',
+            1267414319522925: '02ccb5ec-24e3-11df-8924-001ff3591711',
+        }
+    }
+    
+    Userline = {
+        'a4a70900-24e1-11df-8924-001ff3591711': {
+            # timestamp of tweet: tweet id
+            1267414247561777: '7561a442-24e2-11df-8924-001ff3591711',
+            1267414277402340: 'f0c8d718-24e2-11df-8924-001ff3591711',
+            1267414305866969: 'f9e6d804-24e2-11df-8924-001ff3591711',
+            1267414319522925: '02ccb5ec-24e3-11df-8924-001ff3591711',
+        }
+    }
