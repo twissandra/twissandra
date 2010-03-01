@@ -14,6 +14,7 @@ install the project:
 1. Check out the latest Cassandra source code
 1. Check out the Twissandra source code
 1. Install and configure Cassandra
+1. Install Thrift
 1. Create a virtual Python environment with Twissandra's dependencies
 1. Start up the webserver
 
@@ -52,10 +53,14 @@ Finally we can start Cassandra:
 This will run the Cassandra database (configured for Twissandra) in the
 foreground, so to continue, we'll need to open a new terminal.
 
+### Install Thrift
+
+Follow the instructions [provided on the Thrift website itself](http://wiki.apache.org/thrift/ThriftInstallation)
+
 ### Create a virtual Python environment with Twissandra's dependencies
 
-First, make sure you have virtualenv installed.  If you don't have it installed
-already, this should do the trick:
+First, make sure to have virtualenv installed.  If it isn't installed already,
+this should do the trick:
 
     sudo easy_install -U virtualenv
 
