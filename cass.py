@@ -1,6 +1,5 @@
 import struct
 import time
-import uuid
 
 from odict import OrderedDict
 
@@ -10,6 +9,7 @@ from cassandra.ttypes import NotFoundException
 
 try:
     import simplejson as json
+    dir(json) # Placate PyFlakes
 except ImportError:
     import json
 
