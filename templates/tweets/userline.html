@@ -8,7 +8,7 @@
         {% for tweet in tweets %}
             <li>
                 <a href="{% url userline tweet.user.username %}" class="username">{{ tweet.user.username }}</a>
-                <span class="body">{{ tweet.body }}</span>
+                <span class="body">{{ tweet.body|urlize }}</span>
             </li>
         {% empty %}
             <li>There are no tweets yet.  Make sure to post one!</li>
