@@ -10,7 +10,7 @@ h2 { color: #665B56; }
 #nav li { display: inline; }
 #nav li a { padding-top: 4px; padding-bottom: 4px; text-indent: 8px; }
 
-a { text-decoration: none; color: #665B56; }
+a { color: #665B56; }
 a:hover { color: #F74; text-decoration: underline; }
 
 #poster input,#poster textarea { min-height: 80px; line-height: 40px; font-size: 2em; border: 1px solid #999; }
