@@ -214,7 +214,7 @@ def save_tweet(tweet_id, user_id, tweet):
     """
     # Generate a timestamp, and put it in the tweet record
     raw_ts = int(time.time() * 1e6)
-    tweet['_ts'] = raw_ts
+    tweet['_ts'] = str(raw_ts)
     ts = _long(raw_ts)
     # Insert the tweet, then into the user's timeline, then into the public one
     TWEET.insert(str(tweet_id), tweet)
