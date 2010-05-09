@@ -7,12 +7,6 @@ import pycassa
 
 from cassandra.ttypes import NotFoundException
 
-try:
-    import simplejson as json
-    dir(json) # Placate PyFlakes
-except ImportError:
-    import json
-
 __all__ = ['get_user_by_id', 'get_user_by_username', 'get_friend_ids',
     'get_follower_ids', 'get_users_for_user_ids', 'get_friends',
     'get_followers', 'get_timeline', 'get_userline', 'get_tweet', 'save_user',
@@ -91,25 +85,17 @@ def _get_line(cf, user_id, start, limit):
         return []
     # Now we do a multiget to get the tweets themselves
     tweets = TWEET.multiget(timeline.values())
-    tweets = dict(((json.loads(t['id']), t) for t in tweets.values()))
-    # Now we iterate over the tweets in the order we received them from the
-    # timeline, and decode the tweets
-    decoded = []
-    for tweet_id in timeline.values():
-        tweet = tweets.get(tweet_id)
-        if not tweet:
-            continue
-        decoded.append(
-            dict(((k, json.loads(v)) for k, v in tweet.iteritems()))
-        )
+    tweets = dict(((t['id'], t) for t in tweets.values()))
+    # Order the tweets in the order we got back from the timeline
+    ordered = [tweets.get(tweet_id) for tweet_id in timeline.values()]
     # We want to get the information about the user who made the tweet, so
     # we query for that as well and insert it into the data structure before
     # returning.
-    users = get_users_for_user_ids([u['user_id'] for u in decoded])
+    users = get_users_for_user_ids([u['user_id'] for u in ordered])
     users = dict(((u['id'], u) for u in users))
-    for tweet in decoded:
+    for tweet in ordered:
         tweet['user'] = users.get(tweet['user_id'])
-    return decoded
+    return ordered
 
 
 # QUERYING APIs
@@ -122,7 +108,7 @@ def get_user_by_id(user_id):
         user = USER.get(str(user_id))
     except NotFoundException:
         raise NotFound('User %s not found' % (user_id,))
-    return dict(((k, json.loads(v)) for k, v in user.iteritems()))
+    return user
 
 def get_user_by_username(username):
     """
@@ -159,12 +145,7 @@ def get_users_for_user_ids(user_ids):
         users = USER.multiget(map(str, user_ids))
     except NotFoundException:
         raise NotFound('Users %s not found' % (user_ids,))
-    decoded = []
-    for user in users.values():
-        decoded.append(
-            dict(((k, json.loads(v)) for k, v in user.iteritems()))
-        )
-    return decoded
+    return users.values()
 
 def get_friends(user_id, count=5000):
     """
@@ -200,7 +181,7 @@ def get_tweet(tweet_id):
         tweet = TWEET.get(str(tweet_id))
     except NotFoundException:
         raise NotFound('Tweet %s not found' % (tweet_id,))
-    return dict(((k, json.loads(v)) for k, v in tweet.iteritems()))
+    return tweet
 
 
 # INSERTING APIs
@@ -209,9 +190,8 @@ def save_user(user_id, user):
     """
     Saves the user record.
     """
-    # First encode and save the user record
-    encoded = dict(((k, json.dumps(v)) for k, v in user.iteritems()))
-    USER.insert(str(user_id), encoded)
+    # First save the user record
+    USER.insert(str(user_id), user)
     # Then save the index from username to user id
     if 'username' in user:
         key = user['username'].encode('utf-8')
@@ -225,9 +205,8 @@ def save_tweet(tweet_id, user_id, tweet):
     raw_ts = int(time.time() * 1e6)
     tweet['_ts'] = raw_ts
     ts = _long(raw_ts)
-    encoded = dict(((k, json.dumps(v)) for k, v in tweet.iteritems()))
     # Insert the tweet, then into the user's timeline, then into the public one
-    TWEET.insert(str(tweet_id), encoded)
+    TWEET.insert(str(tweet_id), tweet)
     USERLINE.insert(str(user_id), {ts: str(tweet_id)})
     USERLINE.insert(PUBLIC_USERLINE_KEY, {ts: str(tweet_id)})
     # Get the user's followers, and insert the tweet into all of their streams
