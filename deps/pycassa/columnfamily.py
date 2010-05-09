@@ -1,6 +1,11 @@
+try:
+    import pkg_resources
+    pkg_resources.require('Thrift')
+except ImportError:
+    pass
 from cassandra.ttypes import Column, ColumnOrSuperColumn, ColumnParent, \
     ColumnPath, ConsistencyLevel, NotFoundException, SlicePredicate, \
-    SliceRange, SuperColumn
+    SliceRange, SuperColumn, Mutation, Deletion
 
 import time
 
@@ -12,7 +17,7 @@ def gm_timestamp():
     -------
     int : UNIX epoch time in GMT
     """
-    return int(time.mktime(time.gmtime()))
+    return int(time.time() * 1e6)
 
 def create_SlicePredicate(columns, column_start, column_finish, column_reversed, column_count):
     if columns is not None:
@@ -25,7 +30,7 @@ class ColumnFamily(object):
     def __init__(self, client, keyspace, column_family,
                  buffer_size=1024,
                  read_consistency_level=ConsistencyLevel.ONE,
-                 write_consistency_level=ConsistencyLevel.ZERO,
+                 write_consistency_level=ConsistencyLevel.ONE,
                  timestamp=gm_timestamp, super=False,
                  dict_class=dict):
         """
@@ -96,9 +101,23 @@ class ColumnFamily(object):
                 ret[col.name] = self._convert_Column_to_base(col, include_timestamp)
         return ret
 
+    def _rcl(self, alternative):
+        """Helper function that returns self.read_consistency_level if
+        alternative is None, otherwise returns alternative"""
+        if alternative is None:
+            return self.read_consistency_level
+        return alternative
+
+    def _wcl(self, alternative):
+        """Helper function that returns self.write_consistency_level
+        if alternative is None, otherwise returns alternative"""
+        if alternative is None:
+            return self.write_consistency_level
+        return alternative
+
     def get(self, key, columns=None, column_start="", column_finish="",
             column_reversed=False, column_count=100, include_timestamp=False,
-            super_column=None):
+            super_column=None, read_consistency_level = None):
         """
         Fetch a key from a Cassandra server
         
@@ -107,20 +126,23 @@ class ColumnFamily(object):
         key : str
             The key to fetch
         columns : [str]
-            Limit the columns fetched to the specified list
+            Limit the columns or super_columns fetched to the specified list
         column_start : str
-            Only fetch when a column is >= column_start
+            Only fetch when a column or super_column is >= column_start
         column_finish : str
-            Only fetch when a column is <= column_finish
+            Only fetch when a column or super_column is <= column_finish
         column_reversed : bool
-            Fetch the columns in reverse order. This will do nothing unless
-            you passed a dict_class to the constructor.
+            Fetch the columns or super_columns in reverse order. This will do
+            nothing unless you passed a dict_class to the constructor.
         column_count : int
-            Limit the number of columns fetched per key
+            Limit the number of columns or super_columns fetched per key
         include_timestamp : bool
             If true, return a (value, timestamp) tuple for each column
         super_column : str
             Return columns only in this super_column
+        read_consistency_level : ConsistencyLevel
+            Affects the guaranteed replication factor before returning from
+            any read operation
 
         Returns
         -------
@@ -132,14 +154,15 @@ class ColumnFamily(object):
                                    column_reversed, column_count)
 
         list_col_or_super = self.client.get_slice(self.keyspace, key, cp, sp,
-                                                  self.read_consistency_level)
+                                                  self._rcl(read_consistency_level))
+
         if len(list_col_or_super) == 0:
             raise NotFoundException()
         return self._convert_ColumnOrSuperColumns_to_dict_class(list_col_or_super, include_timestamp)
 
     def multiget(self, keys, columns=None, column_start="", column_finish="",
                  column_reversed=False, column_count=100, include_timestamp=False,
-                 super_column=None):
+                 super_column=None, read_consistency_level = None):
         """
         Fetch multiple key from a Cassandra server
         
@@ -148,20 +171,23 @@ class ColumnFamily(object):
         keys : [str]
             A list of keys to fetch
         columns : [str]
-            Limit the columns fetched to the specified list
+            Limit the columns or super_columns fetched to the specified list
         column_start : str
-            Only fetch when a column is >= column_start
+            Only fetch when a column or super_column is >= column_start
         column_finish : str
-            Only fetch when a column is <= column_finish
+            Only fetch when a column or super_column is <= column_finish
         column_reversed : bool
-            Fetch the columns in reverse order. This will do nothing unless
-            you passed a dict_class to the constructor.
+            Fetch the columns or super_columns in reverse order. This will do
+            nothing unless you passed a dict_class to the constructor.
         column_count : int
-            Limit the number of columns fetched per key
+            Limit the number of columns or super_columns fetched per key
         include_timestamp : bool
             If true, return a (value, timestamp) tuple for each column
         super_column : str
             Return columns only in this super_column
+        read_consistency_level : ConsistencyLevel
+            Affects the guaranteed replication factor before returning from
+            any read operation
 
         Returns
         -------
@@ -173,7 +199,7 @@ class ColumnFamily(object):
                                    column_reversed, column_count)
 
         keymap = self.client.multiget_slice(self.keyspace, keys, cp, sp,
-                                            self.read_consistency_level)
+                                            self._rcl(read_consistency_level))
 
         ret = dict()
         for key, columns in keymap.iteritems():
@@ -181,7 +207,7 @@ class ColumnFamily(object):
                 ret[key] = self._convert_ColumnOrSuperColumns_to_dict_class(columns, include_timestamp)
         return ret
 
-    def get_count(self, key, super_column=None):
+    def get_count(self, key, super_column=None, read_consistency_level = None):
         """
         Count the number of columns for a key
 
@@ -191,6 +217,9 @@ class ColumnFamily(object):
             The key with which to count columns
         super_column : str
             Count the columns only in this super_column
+        read_consistency_level : ConsistencyLevel
+            Affects the guaranteed replication factor before returning from
+            any read operation
 
         Returns
         -------
@@ -198,12 +227,12 @@ class ColumnFamily(object):
         """
         cp = ColumnParent(column_family=self.column_family, super_column=super_column)
         return self.client.get_count(self.keyspace, key, cp,
-                                     self.read_consistency_level)
+                                     self._rcl(read_consistency_level))
 
     def get_range(self, start="", finish="", columns=None, column_start="",
                   column_finish="", column_reversed=False, column_count=100,
                   row_count=None, include_timestamp=False,
-                  super_column=None):
+                  super_column=None, read_consistency_level = None):
         """
         Get an iterator over keys in a specified range
         
@@ -214,22 +243,25 @@ class ColumnFamily(object):
         finish : str
             End at this key (inclusive)
         columns : [str]
-            Limit the columns fetched to the specified list
+            Limit the columns or super_columns fetched to the specified list
         column_start : str
-            Only fetch when a column is >= column_start
+            Only fetch when a column or super_column is >= column_start
         column_finish : str
-            Only fetch when a column is <= column_finish
+            Only fetch when a column or super_column is <= column_finish
         column_reversed : bool
-            Fetch the columns in reverse order. This will do nothing unless
-            you passed a dict_class to the constructor.
+            Fetch the columns or super_columns in reverse order. This will do
+            nothing unless you passed a dict_class to the constructor.
         column_count : int
-            Limit the number of columns fetched per key
+            Limit the number of columns or super_columns fetched per key
         row_count : int
             Limit the number of rows fetched
         include_timestamp : bool
             If true, return a (value, timestamp) tuple for each column
         super_column : string
             Return columns only in this super_column
+        read_consistency_level : ConsistencyLevel
+            Affects the guaranteed replication factor before returning from
+            any read operation
 
         Returns
         -------
@@ -249,7 +281,7 @@ class ColumnFamily(object):
         while True:
             key_slices = self.client.get_range_slice(self.keyspace, cp, sp, last_key,
                                                      finish, buffer_size,
-                                                     self.read_consistency_level)
+                                                     self._rcl(read_consistency_level))
             # This may happen if nothing was ever inserted
             if key_slices is None:
                 return
@@ -269,7 +301,7 @@ class ColumnFamily(object):
             last_key = key_slices[-1].key
             i += 1
 
-    def insert(self, key, columns):
+    def insert(self, key, columns, write_consistency_level = None):
         """
         Insert or update columns for a key
 
@@ -281,6 +313,9 @@ class ColumnFamily(object):
             Column: {'column': 'value'}
             SuperColumn: {'column': {'subcolumn': 'value'}}
             The columns or supercolumns to insert or update
+        write_consistency_level : ConsistencyLevel
+            Affects the guaranteed replication factor before returning from
+            any write operation
 
         Returns
         -------
@@ -294,35 +329,47 @@ class ColumnFamily(object):
                 subc = [Column(name=subname, value=subvalue, timestamp=timestamp) \
                         for subname, subvalue in v.iteritems()]
                 column = SuperColumn(name=c, columns=subc)
-                cols.append(ColumnOrSuperColumn(super_column=column))
+                cols.append(Mutation(column_or_supercolumn=ColumnOrSuperColumn(super_column=column)))
             else:
                 column = Column(name=c, value=v, timestamp=timestamp)
-                cols.append(ColumnOrSuperColumn(column=column))
-        self.client.batch_insert(self.keyspace, key,
-                                 {self.column_family: cols},
-                                 self.write_consistency_level)
+                cols.append(Mutation(column_or_supercolumn=ColumnOrSuperColumn(column=column)))
+        self.client.batch_mutate(self.keyspace,
+                                 {key: {self.column_family: cols}},
+                                 self._wcl(write_consistency_level))
         return timestamp
 
-    def remove(self, key, column=None):
+    def remove(self, key, columns=None, super_column=None, write_consistency_level = None):
         """
-        Remove a specified key or column
+        Remove a specified key or columns
 
         Parameters
         ----------
         key : str
-            The key to remove. If column is not set, remove all columns
-        column : str
-            If set, remove only this column or supercolumn
+            The key to remove. If columns is not set, remove all columns
+        columns : list
+            Delete the columns or super_columns in this list
+        super_column : str
+            Delete the columns from this super_column
+        write_consistency_level : ConsistencyLevel
+            Affects the guaranteed replication factor before returning from
+            any write operation
 
         Returns
         -------
         int timestamp
         """
-        if self.super:
-            cp = ColumnPath(column_family=self.column_family, super_column=column)
-        else:
-            cp = ColumnPath(column_family=self.column_family, column=column)
         timestamp = self.timestamp()
-        self.client.remove(self.keyspace, key, cp, timestamp,
-                           self.write_consistency_level)
+        if columns is not None:
+            # Deletion doesn't support SliceRange predicates as of Cassandra 0.6.0,
+            # so we can't add column_start, column_finish, etc... yet
+            sp = SlicePredicate(column_names=columns)
+            deletion = Deletion(timestamp=timestamp, super_column=super_column, predicate=sp)
+            mutation = Mutation(deletion=deletion)
+            self.client.batch_mutate(self.keyspace,
+                                     {key: {self.column_family: [mutation]}},
+                                     self._wcl(write_consistency_level))
+        else:
+            cp = ColumnPath(column_family=self.column_family, super_column=super_column)
+            self.client.remove(self.keyspace, key, cp, timestamp,
+                               self._wcl(write_consistency_level))
         return timestamp
