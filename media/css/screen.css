@@ -13,6 +13,8 @@ h2 { color: #665B56; }
 a { color: #665B56; }
 a:hover { color: #F74; text-decoration: underline; }
 
+li.more { font-size: 1.6em; background-color: #F7F7F7; text-align: center; }
+
 #poster input,#poster textarea { min-height: 80px; line-height: 40px; font-size: 2em; border: 1px solid #999; }
 #poster textarea { margin-left: 15px; width: 95%; }
 

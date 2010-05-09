@@ -13,10 +13,10 @@
         {% empty %}
             <li>There are no tweets yet.  Make sure to post one!</li>
         {% endfor %}
+        {% if next %}
+            <li class="more"><a href="?start={{ next }}">More</a></li>
+        {% endif %}
     </ul>
-    {% if next %}
-        <a href="?start={{ next }}">More</a>
-    {% endif %}
 {% endblock %}
 
 {% block sidebar %}
