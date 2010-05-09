@@ -30,6 +30,17 @@ TIMELINE = pycassa.ColumnFamily(CLIENT, 'Twissandra', 'Timeline',
 USERLINE = pycassa.ColumnFamily(CLIENT, 'Twissandra', 'Userline',
     dict_class=OrderedDict)
 
+# NOTE: Having a single userline key to store all of the public tweets is not
+#       scalable.  Currently, Cassandra requires that an entire row (meaning
+#       every column under a given key) to be able to fit in memory.  You can
+#       imagine that after a while, the entire public timeline would exceed
+#       available memory.
+#
+#       The fix for this is to partition the timeline by time, so we could use
+#       a key like !PUBLIC!2010-04-01 to partition it per day.  We could drill
+#       down even further into hourly keys, etc.  Since this is a demonstration
+#       and that would add quite a bit of extra code, this excercise is left to
+#       the reader.
 PUBLIC_USERLINE_KEY = '!PUBLIC!'
 
 
