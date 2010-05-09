@@ -24,7 +24,7 @@ install the project:
 
 ### Check out the latest Cassandra source code
 
-    svn co https://svn.apache.org/repos/asf/incubator/cassandra/trunk cassandra
+    curl -O http://download.filehat.com/apache/cassandra/0.6.1/apache-cassandra-0.6.1-bin.tar.gz
 
 ### Check out the Twissandra source code
 
@@ -32,11 +32,10 @@ install the project:
 
 ### Install and configure Cassandra
 
-First we need to download Cassandra's dependencies and compile the classfiles:
+Now untar cassandra
 
-    cd cassandra
-    ant ivy-retrieve
-    ant build
+    tar xvfz apache-cassandra-0.6.1-bin.tar.gz
+    cd apache-cassandra-0.6.1
 
 Then we need to create our database directories on disk:
 
