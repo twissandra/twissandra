@@ -24,22 +24,23 @@ class ConsistencyLevel:
   allowing availability in the face of node failures up to half of <ReplicationFactor>. Of course if latency is more
   important than consistency then you can use lower values for either or both.
   
-  Write:
-       ZERO    Ensure nothing. A write happens asynchronously in background
-       ANY     Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.
-       ONE     Ensure that the write has been written to at least 1 node's commit log and memory table before responding to the client.
-       QUORUM  Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes before responding to the client.
-       ALL     Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
+  Write consistency levels make the following guarantees before reporting success to the client:
+    ZERO         Ensure nothing. A write happens asynchronously in background
+    ANY          Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.
+    ONE          Ensure that the write has been written to at least 1 node's commit log and memory table
+    QUORUM       Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes
+    DCQUORUM     Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes, within the local datacenter (requires DatacenterShardStrategy)
+    DCQUORUMSYNC Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes in each datacenter (requires DatacenterShardStrategy)
+    ALL          Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
   
   Read:
-       ZERO    Not supported, because it doesn't make sense.
-       ANY     Not supported. You probably want ONE instead.
-       ONE     Will return the record returned by the first node to respond. A consistency check is always done in a
-               background thread to fix any consistency issues when ConsistencyLevel.ONE is used. This means subsequent
-               calls will have correct data even if the initial read gets an older value. (This is called 'read repair'.)
-       QUORUM  Will query all storage nodes and return the record with the most recent timestamp once it has at least a
-               majority of replicas reported. Again, the remaining replicas will be checked in the background.
-       ALL     Not yet supported, but we plan to eventually.
+    ZERO         Not supported, because it doesn't make sense.
+    ANY          Not supported. You probably want ONE instead.
+    ONE          Will return the record returned by the first node to respond. A consistency check is always done in a background thread to fix any consistency issues when ConsistencyLevel.ONE is used. This means subsequent calls will have correct data even if the initial read gets an older value. (This is called 'read repair'.)
+    QUORUM       Will query all storage nodes and return the record with the most recent timestamp once it has at least a majority of replicas reported. Again, the remaining replicas will be checked in the background.
+    DCQUORUM     Returns the record with the most recent timestamp once a majority of replicas within the local datacenter have replied.
+    DCQUORUMSYNC Returns the record with the most recent timestamp once a majority of replicas within each datacenter have replied.
+    ALL          Queries all storage nodes and returns the record with the most recent timestamp.
   """
   ZERO = 0
   ONE = 1
@@ -69,31 +70,124 @@ class ConsistencyLevel:
     "ANY": 6,
   }
 
+class AccessLevel:
+  """
+  The AccessLevel is an enum that expresses the authorized access level granted to an API user:
+  
+  NONE       No access permitted.
+  READONLY   Only read access is allowed.
+  READWRITE  Read and write access is allowed.
+  FULL       Read, write, and remove access is allowed.
+  """
+  NONE = 0
+  READONLY = 16
+  READWRITE = 32
+  FULL = 64
+
+  _VALUES_TO_NAMES = {
+    0: "NONE",
+    16: "READONLY",
+    32: "READWRITE",
+    64: "FULL",
+  }
+
+  _NAMES_TO_VALUES = {
+    "NONE": 0,
+    "READONLY": 16,
+    "READWRITE": 32,
+    "FULL": 64,
+  }
+
+class Clock:
+  """
+  Encapsulate types of conflict resolution.
+  
+  @param timestamp. User-supplied timestamp. When two columns with this type of clock conflict, the one with the
+                    highest timestamp is the one whose value the system will converge to. No other assumptions
+                    are made about what the timestamp represents, but using microseconds-since-epoch is customary.
+  
+  Attributes:
+   - timestamp
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.I64, 'timestamp', None, None, ), # 1
+  )
+
+  def __init__(self, timestamp=None,):
+    self.timestamp = timestamp
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.I64:
+          self.timestamp = iprot.readI64();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('Clock')
+    if self.timestamp != None:
+      oprot.writeFieldBegin('timestamp', TType.I64, 1)
+      oprot.writeI64(self.timestamp)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
 class Column:
   """
   Basic unit of data within a ColumnFamily.
-  @param name. A column name can act both as structure (a label) or as data (like value). Regardless, the name of the column
-         is used as a key to its value.
-  @param value. Some data
-  @param timestamp. Used to record when data was sent to be written.
+  @param name, the name by which this column is set and retrieved.  Maximum 64KB long.
+  @param value. The data associated with the name.  Maximum 2GB long, but in practice you should limit it to small numbers of MB (since Thrift must read the full value into memory to operate on it).
+  @param clock. The clock is used for conflict detection/resolution when two columns with same name need to be compared.
+  @param ttl. An optional, positive delay (in seconds) after which the column will be automatically deleted.
   
   Attributes:
    - name
    - value
-   - timestamp
+   - clock
+   - ttl
   """
 
   thrift_spec = (
     None, # 0
     (1, TType.STRING, 'name', None, None, ), # 1
     (2, TType.STRING, 'value', None, None, ), # 2
-    (3, TType.I64, 'timestamp', None, None, ), # 3
+    (3, TType.STRUCT, 'clock', (Clock, Clock.thrift_spec), None, ), # 3
+    (4, TType.I32, 'ttl', None, None, ), # 4
   )
 
-  def __init__(self, name=None, value=None, timestamp=None,):
+  def __init__(self, name=None, value=None, clock=None, ttl=None,):
     self.name = name
     self.value = value
-    self.timestamp = timestamp
+    self.clock = clock
+    self.ttl = ttl
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -115,8 +209,14 @@ class Column:
         else:
           iprot.skip(ftype)
       elif fid == 3:
-        if ftype == TType.I64:
-          self.timestamp = iprot.readI64();
+        if ftype == TType.STRUCT:
+          self.clock = Clock()
+          self.clock.read(iprot)
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
+        if ftype == TType.I32:
+          self.ttl = iprot.readI32();
         else:
           iprot.skip(ftype)
       else:
@@ -137,9 +237,13 @@ class Column:
       oprot.writeFieldBegin('value', TType.STRING, 2)
       oprot.writeString(self.value)
       oprot.writeFieldEnd()
-    if self.timestamp != None:
-      oprot.writeFieldBegin('timestamp', TType.I64, 3)
-      oprot.writeI64(self.timestamp)
+    if self.clock != None:
+      oprot.writeFieldBegin('clock', TType.STRUCT, 3)
+      self.clock.write(oprot)
+      oprot.writeFieldEnd()
+    if self.ttl != None:
+      oprot.writeFieldBegin('ttl', TType.I32, 4)
+      oprot.writeI32(self.ttl)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -512,7 +616,7 @@ class TimedOutException(Exception):
 
 class AuthenticationException(Exception):
   """
-  invalid authentication request (user does not exist or credentials invalid)
+  invalid authentication request (invalid keyspace, user does not exist, or credentials invalid)
   
   Attributes:
    - why
@@ -808,18 +912,20 @@ class SliceRange:
                 must a valid value under the rules of the Comparator defined for the given ColumnFamily.
   @param finish. The column name to stop the slice at. This attribute is not required, though there is no default value,
                  and can be safely set to an empty byte array to not stop until 'count' results are seen. Otherwise, it
-                 must also be a value value to the ColumnFamily Comparator.
+                 must also be a valid value to the ColumnFamily Comparator.
   @param reversed. Whether the results should be ordered in reversed order. Similar to ORDER BY blah DESC in SQL.
   @param count. How many keys to return. Similar to LIMIT 100 in SQL. May be arbitrarily large, but Thrift will
                 materialize the whole result into memory before returning it to the client, so be aware that you may
                 be better served by iterating through slices by passing the last value of one call in as the 'start'
                 of the next instead of increasing 'count' arbitrarily large.
+  @param bitmasks. A list of OR-ed binary AND masks applied to the result set.
   
   Attributes:
    - start
    - finish
    - reversed
    - count
+   - bitmasks
   """
 
   thrift_spec = (
@@ -828,13 +934,15 @@ class SliceRange:
     (2, TType.STRING, 'finish', None, None, ), # 2
     (3, TType.BOOL, 'reversed', None, False, ), # 3
     (4, TType.I32, 'count', None, 100, ), # 4
+    (5, TType.LIST, 'bitmasks', (TType.STRING,None), None, ), # 5
   )
 
-  def __init__(self, start=None, finish=None, reversed=thrift_spec[3][4], count=thrift_spec[4][4],):
+  def __init__(self, start=None, finish=None, reversed=thrift_spec[3][4], count=thrift_spec[4][4], bitmasks=None,):
     self.start = start
     self.finish = finish
     self.reversed = reversed
     self.count = count
+    self.bitmasks = bitmasks
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -865,6 +973,16 @@ class SliceRange:
           self.count = iprot.readI32();
         else:
           iprot.skip(ftype)
+      elif fid == 5:
+        if ftype == TType.LIST:
+          self.bitmasks = []
+          (_etype10, _size7) = iprot.readListBegin()
+          for _i11 in xrange(_size7):
+            _elem12 = iprot.readString();
+            self.bitmasks.append(_elem12)
+          iprot.readListEnd()
+        else:
+          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -890,6 +1008,13 @@ class SliceRange:
     if self.count != None:
       oprot.writeFieldBegin('count', TType.I32, 4)
       oprot.writeI32(self.count)
+      oprot.writeFieldEnd()
+    if self.bitmasks != None:
+      oprot.writeFieldBegin('bitmasks', TType.LIST, 5)
+      oprot.writeListBegin(TType.STRING, len(self.bitmasks))
+      for iter13 in self.bitmasks:
+        oprot.writeString(iter13)
+      oprot.writeListEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -945,10 +1070,10 @@ class SlicePredicate:
       if fid == 1:
         if ftype == TType.LIST:
           self.column_names = []
-          (_etype10, _size7) = iprot.readListBegin()
-          for _i11 in xrange(_size7):
-            _elem12 = iprot.readString();
-            self.column_names.append(_elem12)
+          (_etype17, _size14) = iprot.readListBegin()
+          for _i18 in xrange(_size14):
+            _elem19 = iprot.readString();
+            self.column_names.append(_elem19)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -971,8 +1096,8 @@ class SlicePredicate:
     if self.column_names != None:
       oprot.writeFieldBegin('column_names', TType.LIST, 1)
       oprot.writeListBegin(TType.STRING, len(self.column_names))
-      for iter13 in self.column_names:
-        oprot.writeString(iter13)
+      for iter20 in self.column_names:
+        oprot.writeString(iter20)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.slice_range != None:
@@ -1144,11 +1269,11 @@ class KeySlice:
       elif fid == 2:
         if ftype == TType.LIST:
           self.columns = []
-          (_etype17, _size14) = iprot.readListBegin()
-          for _i18 in xrange(_size14):
-            _elem19 = ColumnOrSuperColumn()
-            _elem19.read(iprot)
-            self.columns.append(_elem19)
+          (_etype24, _size21) = iprot.readListBegin()
+          for _i25 in xrange(_size21):
+            _elem26 = ColumnOrSuperColumn()
+            _elem26.read(iprot)
+            self.columns.append(_elem26)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -1169,8 +1294,8 @@ class KeySlice:
     if self.columns != None:
       oprot.writeFieldBegin('columns', TType.LIST, 2)
       oprot.writeListBegin(TType.STRUCT, len(self.columns))
-      for iter20 in self.columns:
-        iter20.write(oprot)
+      for iter27 in self.columns:
+        iter27.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -1190,20 +1315,20 @@ class KeySlice:
 class Deletion:
   """
   Attributes:
-   - timestamp
+   - clock
    - super_column
    - predicate
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.I64, 'timestamp', None, None, ), # 1
+    (1, TType.STRUCT, 'clock', (Clock, Clock.thrift_spec), None, ), # 1
     (2, TType.STRING, 'super_column', None, None, ), # 2
     (3, TType.STRUCT, 'predicate', (SlicePredicate, SlicePredicate.thrift_spec), None, ), # 3
   )
 
-  def __init__(self, timestamp=None, super_column=None, predicate=None,):
-    self.timestamp = timestamp
+  def __init__(self, clock=None, super_column=None, predicate=None,):
+    self.clock = clock
     self.super_column = super_column
     self.predicate = predicate
 
@@ -1217,8 +1342,9 @@ class Deletion:
       if ftype == TType.STOP:
         break
       if fid == 1:
-        if ftype == TType.I64:
-          self.timestamp = iprot.readI64();
+        if ftype == TType.STRUCT:
+          self.clock = Clock()
+          self.clock.read(iprot)
         else:
           iprot.skip(ftype)
       elif fid == 2:
@@ -1242,9 +1368,9 @@ class Deletion:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('Deletion')
-    if self.timestamp != None:
-      oprot.writeFieldBegin('timestamp', TType.I64, 1)
-      oprot.writeI64(self.timestamp)
+    if self.clock != None:
+      oprot.writeFieldBegin('clock', TType.STRUCT, 1)
+      self.clock.write(oprot)
       oprot.writeFieldEnd()
     if self.super_column != None:
       oprot.writeFieldBegin('super_column', TType.STRING, 2)
@@ -1384,10 +1510,10 @@ class TokenRange:
       elif fid == 3:
         if ftype == TType.LIST:
           self.endpoints = []
-          (_etype24, _size21) = iprot.readListBegin()
-          for _i25 in xrange(_size21):
-            _elem26 = iprot.readString();
-            self.endpoints.append(_elem26)
+          (_etype31, _size28) = iprot.readListBegin()
+          for _i32 in xrange(_size28):
+            _elem33 = iprot.readString();
+            self.endpoints.append(_elem33)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -1412,8 +1538,8 @@ class TokenRange:
     if self.endpoints != None:
       oprot.writeFieldBegin('endpoints', TType.LIST, 3)
       oprot.writeListBegin(TType.STRING, len(self.endpoints))
-      for iter27 in self.endpoints:
-        oprot.writeString(iter27)
+      for iter34 in self.endpoints:
+        oprot.writeString(iter34)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -1458,11 +1584,11 @@ class AuthenticationRequest:
       if fid == 1:
         if ftype == TType.MAP:
           self.credentials = {}
-          (_ktype29, _vtype30, _size28 ) = iprot.readMapBegin() 
-          for _i32 in xrange(_size28):
-            _key33 = iprot.readString();
-            _val34 = iprot.readString();
-            self.credentials[_key33] = _val34
+          (_ktype36, _vtype37, _size35 ) = iprot.readMapBegin() 
+          for _i39 in xrange(_size35):
+            _key40 = iprot.readString();
+            _val41 = iprot.readString();
+            self.credentials[_key40] = _val41
           iprot.readMapEnd()
         else:
           iprot.skip(ftype)
@@ -1479,10 +1605,276 @@ class AuthenticationRequest:
     if self.credentials != None:
       oprot.writeFieldBegin('credentials', TType.MAP, 1)
       oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.credentials))
-      for kiter35,viter36 in self.credentials.items():
-        oprot.writeString(kiter35)
-        oprot.writeString(viter36)
+      for kiter42,viter43 in self.credentials.items():
+        oprot.writeString(kiter42)
+        oprot.writeString(viter43)
       oprot.writeMapEnd()
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class CfDef:
+  """
+  Attributes:
+   - table
+   - name
+   - column_type
+   - clock_type
+   - comparator_type
+   - subcomparator_type
+   - comment
+   - row_cache_size
+   - preload_row_cache
+   - key_cache_size
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'table', None, None, ), # 1
+    (2, TType.STRING, 'name', None, None, ), # 2
+    (3, TType.STRING, 'column_type', None, "Standard", ), # 3
+    (4, TType.STRING, 'clock_type', None, "Timestamp", ), # 4
+    (5, TType.STRING, 'comparator_type', None, "BytesType", ), # 5
+    (6, TType.STRING, 'subcomparator_type', None, "", ), # 6
+    (7, TType.STRING, 'comment', None, "", ), # 7
+    (8, TType.DOUBLE, 'row_cache_size', None, 0, ), # 8
+    (9, TType.BOOL, 'preload_row_cache', None, False, ), # 9
+    (10, TType.DOUBLE, 'key_cache_size', None, 200000, ), # 10
+  )
+
+  def __init__(self, table=None, name=None, column_type=thrift_spec[3][4], clock_type=thrift_spec[4][4], comparator_type=thrift_spec[5][4], subcomparator_type=thrift_spec[6][4], comment=thrift_spec[7][4], row_cache_size=thrift_spec[8][4], preload_row_cache=thrift_spec[9][4], key_cache_size=thrift_spec[10][4],):
+    self.table = table
+    self.name = name
+    self.column_type = column_type
+    self.clock_type = clock_type
+    self.comparator_type = comparator_type
+    self.subcomparator_type = subcomparator_type
+    self.comment = comment
+    self.row_cache_size = row_cache_size
+    self.preload_row_cache = preload_row_cache
+    self.key_cache_size = key_cache_size
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.table = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.STRING:
+          self.name = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.STRING:
+          self.column_type = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
+        if ftype == TType.STRING:
+          self.clock_type = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 5:
+        if ftype == TType.STRING:
+          self.comparator_type = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 6:
+        if ftype == TType.STRING:
+          self.subcomparator_type = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 7:
+        if ftype == TType.STRING:
+          self.comment = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 8:
+        if ftype == TType.DOUBLE:
+          self.row_cache_size = iprot.readDouble();
+        else:
+          iprot.skip(ftype)
+      elif fid == 9:
+        if ftype == TType.BOOL:
+          self.preload_row_cache = iprot.readBool();
+        else:
+          iprot.skip(ftype)
+      elif fid == 10:
+        if ftype == TType.DOUBLE:
+          self.key_cache_size = iprot.readDouble();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('CfDef')
+    if self.table != None:
+      oprot.writeFieldBegin('table', TType.STRING, 1)
+      oprot.writeString(self.table)
+      oprot.writeFieldEnd()
+    if self.name != None:
+      oprot.writeFieldBegin('name', TType.STRING, 2)
+      oprot.writeString(self.name)
+      oprot.writeFieldEnd()
+    if self.column_type != None:
+      oprot.writeFieldBegin('column_type', TType.STRING, 3)
+      oprot.writeString(self.column_type)
+      oprot.writeFieldEnd()
+    if self.clock_type != None:
+      oprot.writeFieldBegin('clock_type', TType.STRING, 4)
+      oprot.writeString(self.clock_type)
+      oprot.writeFieldEnd()
+    if self.comparator_type != None:
+      oprot.writeFieldBegin('comparator_type', TType.STRING, 5)
+      oprot.writeString(self.comparator_type)
+      oprot.writeFieldEnd()
+    if self.subcomparator_type != None:
+      oprot.writeFieldBegin('subcomparator_type', TType.STRING, 6)
+      oprot.writeString(self.subcomparator_type)
+      oprot.writeFieldEnd()
+    if self.comment != None:
+      oprot.writeFieldBegin('comment', TType.STRING, 7)
+      oprot.writeString(self.comment)
+      oprot.writeFieldEnd()
+    if self.row_cache_size != None:
+      oprot.writeFieldBegin('row_cache_size', TType.DOUBLE, 8)
+      oprot.writeDouble(self.row_cache_size)
+      oprot.writeFieldEnd()
+    if self.preload_row_cache != None:
+      oprot.writeFieldBegin('preload_row_cache', TType.BOOL, 9)
+      oprot.writeBool(self.preload_row_cache)
+      oprot.writeFieldEnd()
+    if self.key_cache_size != None:
+      oprot.writeFieldBegin('key_cache_size', TType.DOUBLE, 10)
+      oprot.writeDouble(self.key_cache_size)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class KsDef:
+  """
+  Attributes:
+   - name
+   - strategy_class
+   - replication_factor
+   - cf_defs
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'name', None, None, ), # 1
+    (2, TType.STRING, 'strategy_class', None, None, ), # 2
+    (3, TType.I32, 'replication_factor', None, None, ), # 3
+    None, # 4
+    (5, TType.LIST, 'cf_defs', (TType.STRUCT,(CfDef, CfDef.thrift_spec)), None, ), # 5
+  )
+
+  def __init__(self, name=None, strategy_class=None, replication_factor=None, cf_defs=None,):
+    self.name = name
+    self.strategy_class = strategy_class
+    self.replication_factor = replication_factor
+    self.cf_defs = cf_defs
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.name = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.STRING:
+          self.strategy_class = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.I32:
+          self.replication_factor = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      elif fid == 5:
+        if ftype == TType.LIST:
+          self.cf_defs = []
+          (_etype47, _size44) = iprot.readListBegin()
+          for _i48 in xrange(_size44):
+            _elem49 = CfDef()
+            _elem49.read(iprot)
+            self.cf_defs.append(_elem49)
+          iprot.readListEnd()
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('KsDef')
+    if self.name != None:
+      oprot.writeFieldBegin('name', TType.STRING, 1)
+      oprot.writeString(self.name)
+      oprot.writeFieldEnd()
+    if self.strategy_class != None:
+      oprot.writeFieldBegin('strategy_class', TType.STRING, 2)
+      oprot.writeString(self.strategy_class)
+      oprot.writeFieldEnd()
+    if self.replication_factor != None:
+      oprot.writeFieldBegin('replication_factor', TType.I32, 3)
+      oprot.writeI32(self.replication_factor)
+      oprot.writeFieldEnd()
+    if self.cf_defs != None:
+      oprot.writeFieldBegin('cf_defs', TType.LIST, 5)
+      oprot.writeListBegin(TType.STRUCT, len(self.cf_defs))
+      for iter50 in self.cf_defs:
+        iter50.write(oprot)
+      oprot.writeListEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()

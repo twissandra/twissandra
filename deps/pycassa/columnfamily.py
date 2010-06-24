@@ -1,13 +1,8 @@
-try:
-    import pkg_resources
-    pkg_resources.require('Thrift')
-except ImportError:
-    pass
 from cassandra.ttypes import Column, ColumnOrSuperColumn, ColumnParent, \
     ColumnPath, ConsistencyLevel, NotFoundException, SlicePredicate, \
-    SliceRange, SuperColumn, Mutation, Deletion
+    SliceRange, SuperColumn, Mutation, Deletion, Clock, KeyRange
 
-import time
+import time, sys
 
 __all__ = ['gm_timestamp', 'ColumnFamily']
 
@@ -27,8 +22,7 @@ def create_SlicePredicate(columns, column_start, column_finish, column_reversed,
     return SlicePredicate(slice_range=sr)
 
 class ColumnFamily(object):
-    def __init__(self, client, keyspace, column_family,
-                 buffer_size=1024,
+    def __init__(self, client, column_family, buffer_size=1024,
                  read_consistency_level=ConsistencyLevel.ONE,
                  write_consistency_level=ConsistencyLevel.ONE,
                  timestamp=gm_timestamp, super=False,
@@ -40,8 +34,6 @@ class ColumnFamily(object):
         ----------
         client   : cassandra.Cassandra.Client
             Cassandra client with thrift API
-        keyspace : str
-            The Keyspace this ColumnFamily belongs to
         column_family : str
             The name of this ColumnFamily
         buffer_size : int
@@ -70,7 +62,6 @@ class ColumnFamily(object):
             rows and subcolumns are instances of this.
         """
         self.client = client
-        self.keyspace = keyspace
         self.column_family = column_family
         self.buffer_size = buffer_size
         self.read_consistency_level = read_consistency_level
@@ -81,7 +72,7 @@ class ColumnFamily(object):
 
     def _convert_Column_to_base(self, column, include_timestamp):
         if include_timestamp:
-            return (column.value, column.timestamp)
+            return (column.value, column.clock.timestamp)
         return column.value
 
     def _convert_SuperColumn_to_base(self, super_column, include_timestamp):
@@ -153,7 +144,7 @@ class ColumnFamily(object):
         sp = create_SlicePredicate(columns, column_start, column_finish,
                                    column_reversed, column_count)
 
-        list_col_or_super = self.client.get_slice(self.keyspace, key, cp, sp,
+        list_col_or_super = self.client.get_slice(key, cp, sp,
                                                   self._rcl(read_consistency_level))
 
         if len(list_col_or_super) == 0:
@@ -198,7 +189,7 @@ class ColumnFamily(object):
         sp = create_SlicePredicate(columns, column_start, column_finish,
                                    column_reversed, column_count)
 
-        keymap = self.client.multiget_slice(self.keyspace, keys, cp, sp,
+        keymap = self.client.multiget_slice(keys, cp, sp,
                                             self._rcl(read_consistency_level))
 
         ret = dict()
@@ -207,6 +198,7 @@ class ColumnFamily(object):
                 ret[key] = self._convert_ColumnOrSuperColumns_to_dict_class(columns, include_timestamp)
         return ret
 
+    MAX_COUNT = 2**31-1
     def get_count(self, key, super_column=None, read_consistency_level = None):
         """
         Count the number of columns for a key
@@ -226,7 +218,10 @@ class ColumnFamily(object):
         int Count of columns
         """
         cp = ColumnParent(column_family=self.column_family, super_column=super_column)
-        return self.client.get_count(self.keyspace, key, cp,
+        sp = SlicePredicate(slice_range=SliceRange(start='',
+                                                   finish='',
+                                                   count=self.MAX_COUNT))
+        return self.client.get_count(key, cp, sp,
                                      self._rcl(read_consistency_level))
 
     def get_range(self, start="", finish="", columns=None, column_start="",
@@ -279,8 +274,8 @@ class ColumnFamily(object):
         if row_count is not None:
             buffer_size = min(row_count, self.buffer_size)
         while True:
-            key_slices = self.client.get_range_slice(self.keyspace, cp, sp, last_key,
-                                                     finish, buffer_size,
+            key_range = KeyRange(start_key=last_key, end_key=finish, count=buffer_size)
+            key_slices = self.client.get_range_slices(cp, sp, key_range,
                                                      self._rcl(read_consistency_level))
             # This may happen if nothing was ever inserted
             if key_slices is None:
@@ -321,22 +316,21 @@ class ColumnFamily(object):
         -------
         int timestamp
         """
-        timestamp = self.timestamp()
+        clock = Clock(timestamp=self.timestamp())
 
         cols = []
         for c, v in columns.iteritems():
             if self.super:
-                subc = [Column(name=subname, value=subvalue, timestamp=timestamp) \
+                subc = [Column(name=subname, value=subvalue, clock=clock) \
                         for subname, subvalue in v.iteritems()]
                 column = SuperColumn(name=c, columns=subc)
                 cols.append(Mutation(column_or_supercolumn=ColumnOrSuperColumn(super_column=column)))
             else:
-                column = Column(name=c, value=v, timestamp=timestamp)
+                column = Column(name=c, value=v, clock=clock)
                 cols.append(Mutation(column_or_supercolumn=ColumnOrSuperColumn(column=column)))
-        self.client.batch_mutate(self.keyspace,
-                                 {key: {self.column_family: cols}},
+        self.client.batch_mutate({key: {self.column_family: cols}},
                                  self._wcl(write_consistency_level))
-        return timestamp
+        return clock.timestamp
 
     def remove(self, key, columns=None, super_column=None, write_consistency_level = None):
         """
@@ -358,18 +352,17 @@ class ColumnFamily(object):
         -------
         int timestamp
         """
-        timestamp = self.timestamp()
+        clock = Clock(timestamp=self.timestamp())
         if columns is not None:
             # Deletion doesn't support SliceRange predicates as of Cassandra 0.6.0,
             # so we can't add column_start, column_finish, etc... yet
             sp = SlicePredicate(column_names=columns)
-            deletion = Deletion(timestamp=timestamp, super_column=super_column, predicate=sp)
+            deletion = Deletion(clock=clock, super_column=super_column, predicate=sp)
             mutation = Mutation(deletion=deletion)
-            self.client.batch_mutate(self.keyspace,
-                                     {key: {self.column_family: [mutation]}},
+            self.client.batch_mutate({key: {self.column_family: [mutation]}},
                                      self._wcl(write_consistency_level))
         else:
             cp = ColumnPath(column_family=self.column_family, super_column=super_column)
-            self.client.remove(self.keyspace, key, cp, timestamp,
+            self.client.remove(key, cp, clock,
                                self._wcl(write_consistency_level))
-        return timestamp
+        return clock.timestamp
