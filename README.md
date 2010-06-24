@@ -47,7 +47,7 @@ Then we need to create our database directories on disk:
 Now we copy the Cassandra configuration from the Twissandra source tree, and
 put it in its proper place in the Cassandra directory structure:
 
-    cp ../twissandra/storage-conf.xml conf/
+    cp ../twissandra/cassandra.yaml conf/
 
 Finally we can start Cassandra:
 
