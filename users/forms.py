@@ -18,12 +18,10 @@ class LoginForm(forms.Form):
         if user.get('password') != password:
             raise forms.ValidationError(u'Invalid username and/or password')
         return self.cleaned_data
-    
-    def get_user_id(self):
-        username = self.cleaned_data['username']
-        user = cass.get_user_by_username(username)
-        return user['id']
 
+    def get_uname(self):
+        return self.cleaned_data['username']
+    
 
 class RegistrationForm(forms.Form):
     username = forms.RegexField(regex=r'^\w+$', max_length=30)
@@ -50,12 +48,9 @@ class RegistrationForm(forms.Form):
         return self.cleaned_data
     
     def save(self):
-        user_id = str(uuid.uuid1())
         username = self.cleaned_data['username']
         password = self.cleaned_data['password1']
-        cass.save_user(user_id, {
-            'id': user_id,
-            'username': username,
+        cass.save_user(username, {
             'password': password,
         })
-        return user_id
+        return username
