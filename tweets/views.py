@@ -22,15 +22,11 @@ def timeline(request):
         return HttpResponseRedirect(reverse('timeline'))
     start = request.GET.get('start')
     if request.user['is_authenticated']:
-        tweets = cass.get_timeline(request.session['uname'], start=start,
-            limit=NUM_PER_PAGE + 1)
+        tweets,next = cass.get_timeline(request.session['uname'], start=start,
+            limit=NUM_PER_PAGE)
     else:
-        tweets = cass.get_userline(cass.PUBLIC_USERLINE_KEY, start=start,
-            limit=NUM_PER_PAGE + 1)
-    next = None
-    if tweets and len(tweets) == NUM_PER_PAGE + 1:
-        next = tweets[-1]['_ts']
-    tweets = tweets[:NUM_PER_PAGE]
+        tweets,next = cass.get_userline(cass.PUBLIC_USERLINE_KEY, start=start,
+            limit=NUM_PER_PAGE)
     context = {
         'form': form,
         'tweets': tweets,
@@ -41,12 +37,8 @@ def timeline(request):
 
 def publicline(request):
     start = request.GET.get('start')
-    tweets = cass.get_userline(cass.PUBLIC_USERLINE_KEY, start=start,
-        limit=NUM_PER_PAGE + 1)
-    next = None
-    if tweets and len(tweets) == NUM_PER_PAGE + 1:
-        next = tweets[-1]['_ts']
-    tweets = tweets[:NUM_PER_PAGE]
+    tweets,next = cass.get_userline(cass.PUBLIC_USERLINE_KEY, start=start,
+        limit=NUM_PER_PAGE)
     context = {
         'tweets': tweets,
         'next': next,
@@ -70,12 +62,7 @@ def userline(request, username=None):
     user['friend'] = username in friend_unames
     
     start = request.GET.get('start')
-    tweets = cass.get_userline(username, start=start, limit=NUM_PER_PAGE + 1)
-    next = None
-    if tweets and len(tweets) == NUM_PER_PAGE + 1:
-        next = tweets[-1]['_ts']
-    tweets = tweets[:NUM_PER_PAGE]
-    
+    tweets,next = cass.get_userline(username, start=start, limit=NUM_PER_PAGE)
     context = {
         'user': user,
         'username': username,

@@ -86,12 +86,33 @@ def _get_line(cf, uname, start, limit):
     Gets a timeline or a userline given a username, a start, and a limit.
     """
     # First we need to get the raw timeline (in the form of tweet ids)
+    # We get one more tweet than asked for, and if we exceed the limit by doing so,
+    #  that tweet's key (timestamp) is returned as the 'next' key for pagination.
     start = _long(start) if start else ''
+    next = None
     try:
-        timeline = cf.get(str(uname), column_start=start, column_count=limit,
+        timeline = cf.get(str(uname), column_start=start, column_count=limit + 1,
             column_reversed=True)
     except NotFoundException:
         return []
+
+    if len(timeline) > limit:
+        # Convert the packed keys back to longs so we can compare them and not
+        #   worry about endianness (in case someone runs this on SPARC? Sure).
+        py_timestamps = map(lambda x: x[0], map(_unlong, timeline.keys()))
+
+        # Find the minimum timestamp from our get (the oldest one), and convert it
+        #  to a non-floating value.
+        oldest_timestamp = int(min(py_timestamps))
+
+        # Present the string version of the oldest_timestamp for the UI...
+        next = str(oldest_timestamp)
+
+        # And then convert the pylong back to a bitpacked key so we can delete
+        #  if from timeline.
+        next_key = _long(oldest_timestamp)
+        del timeline[next_key]
+
     # Now we do a multiget to get the tweets themselves, comes back in random order
     unordered_tweets = TWEET.multiget(timeline.values())
     # Order the tweets in the order we got back from the timeline
@@ -104,7 +125,7 @@ def _get_line(cf, uname, start, limit):
     # Then attach the user record to the tweet
     for tweet in ordered_tweets:
         tweet['user'] = users.get(tweet['uname'])
-    return ordered_tweets
+    return (ordered_tweets, next)
 
 
 # QUERYING APIs
