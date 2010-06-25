@@ -103,15 +103,14 @@ def _get_line(cf, uname, start, limit):
 
         # Find the minimum timestamp from our get (the oldest one), and convert it
         #  to a non-floating value.
-        oldest_timestamp = int(min(py_timestamps))
+        oldest_timestamp = long(min(py_timestamps))
 
         # Present the string version of the oldest_timestamp for the UI...
         next = str(oldest_timestamp)
 
         # And then convert the pylong back to a bitpacked key so we can delete
         #  if from timeline.
-        next_key = _long(oldest_timestamp)
-        del timeline[next_key]
+        del timeline[_long(oldest_timestamp)]
 
     # Now we do a multiget to get the tweets themselves, comes back in random order
     unordered_tweets = TWEET.multiget(timeline.values())
