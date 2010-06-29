@@ -98,23 +98,27 @@ Now go to http://127.0.0.1:8000/ and you can play with Twissandra!
 If you're running ericflo's Twissandra right now, you'll need to migrate your
 data to the new schema layout. Here's the steps:
 
-1. Kill the running webserver.
-2. Create a new virtualenv for this code and switch to it.
+### Kill the running webserver.
+### Swap out the code.
+Create a new virtualenv for this code and switch to it.
 
     cd twissfork
     virtualenv ENV
     source ENV/bin/activate
 
-3. Run the migrator. NOTE: If you have a large amount of data, consider silencing
+### Run the migrator. 
+NOTE: If you have a large amount of data, consider silencing
 the output of the migrator.
 
     python migrate.py
 
-4. (optional) Compact the database afterwards to remove a lot of cruft.
+### Compact the database.
+This is optional, as it will compact itself soon anyway.
 
     CASS_0.6/bin/nodetool -h 127.0.0.1 compact
 
-5. Restart the webserver and continue playing with Twissandra.
+### Restart the webserver 
+...and continue playing with Twissandra.
 
 ## Schema Layout
 
