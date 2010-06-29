@@ -100,20 +100,22 @@ data to the new schema layout. Here's the steps:
 
 ### Kill the running webserver.
 ### Swap out the code.
-Create a new virtualenv for this code and switch to it.
+Create a new virtualenv for this code and switch to it, then either link the
+requirements or download them again. They're not that big.
 
     cd twissfork
     virtualenv ENV
     source ENV/bin/activate
+    pip install -U -r twissandra/requirements.txt
 
 ### Run the migrator. 
-NOTE: If you have a large amount of data, consider silencing
-the output of the migrator.
+NOTE: If you have a large amount of data, consider silencing the output of the 
+migrator. If you have a toy dataset, then it will just look pretty.
 
     python migrate.py
 
 ### Compact the database.
-This is optional, as it will compact itself soon anyway.
+This is optional, as cassandra will compact itself soon anyway.
 
     CASS_0.6/bin/nodetool -h 127.0.0.1 compact
 
