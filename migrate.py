@@ -47,10 +47,10 @@ def migrate_users(client,ks):
             for friend in friends.keys():
                 friends[uid_to_uname[friend]] = friends[friend]
                 del friends[friend]
-            FRIENDS.remove(old_key[0])
-            FRIENDS.insert(uid_to_uname[old_key[0]],friends)
+            FRIENDS.remove(old_row[0])
+            FRIENDS.insert(uid_to_uname[old_row[0]],friends)
             # This print will probably spam you to death. Please silence it.
-            print '    * Friends of ' + uid_to_uname[old_key[0]] + ' have been migrated.'
+            print '      * Friends of ' + uid_to_uname[old_row[0]] + ' have been migrated.'
 
     print "    * Migrating Followers"
     FOLLOWERS = pycassa.ColumnFamily(client, ks, 'Followers', dict_class=OrderedDict)
@@ -60,10 +60,10 @@ def migrate_users(client,ks):
             for follower in followers.keys():
                 followers[uid_to_uname[follower]] = followers[follower]
                 del followers[follower]
-            FOLLOWERS.remove(old_key[0])
-            FOLLOWERS.insert(uid_to_uname[old_key[0]],followers)
+            FOLLOWERS.remove(old_row[0])
+            FOLLOWERS.insert(uid_to_uname[old_row[0]],followers)
             # This print will probably spam you to death. Please silence it.
-            print '    * Followers of ' + uid_to_uname[old_key[0]] + ' have been migrated.'
+            print '      * Followers of ' + uid_to_uname[old_row[0]] + ' have been migrated.'
 
 
     print "    * Migrating Tweets"
@@ -72,13 +72,13 @@ def migrate_users(client,ks):
         old_row_cols = old_row[1]
         if old_row_cols.has_key('id'):
           del old_row_cols['id']
-          del old_row_cols['ts_']
+          del old_row_cols['_ts']
           old_row_cols['uname'] = uid_to_uname[old_row_cols['user_id']]
           del old_row_cols['user_id']
           TWEET.remove(old_row[0])
           TWEET.insert(old_row[0],old_row_cols)
           # This print will probably spam you to death. Please silence it.
-          print '    * Tweet ' + old_row[0] + ' has been migrated.'
+          print '      * Tweet ' + old_row[0] + ' has been migrated.'
 
     print "    * Migrating Timeline"
     TIMELINE  = pycassa.ColumnFamily(client, ks, 'Timeline', dict_class=OrderedDict)
