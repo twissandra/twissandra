@@ -16,11 +16,11 @@ then starting it up.  Here's a roadmap of the steps we're going to take to
 install the project:
 
 1. Check out the latest Cassandra source code
-1. Check out the Twissandra source code
-1. Install and configure Cassandra
-1. Install Thrift
-1. Create a virtual Python environment with Twissandra's dependencies
-1. Start up the webserver
+2. Check out the Twissandra source code
+3. Install and configure Cassandra
+4. Install Thrift
+5. Create a virtual Python environment with Twissandra's dependencies
+6. Start up the webserver
 
 ### Check out the latest Cassandra source code
 
@@ -93,68 +93,79 @@ Make sure you're in the Twissandra checkout, and then start up the server:
 
 Now go to http://127.0.0.1:8000/ and you can play with Twissandra!
 
+## Upgrade
+
+If you're running ericflo's Twissandra right now, you'll need to migrate your
+data to the new schema layout. Here's the steps:
+
+1. Kill the running webserver.
+2. Create a new virtualenv for this code and switch to it.
+
+    cd twissfork
+    virtualenv ENV
+    source ENV/bin/activate
+
+3. Run the migrator. NOTE: If you have a large amount of data, consider silencing
+the output of the migrator.
+
+    python migrate.py
+
+4. (optional) Compact the database afterwards to remove a lot of cruft.
+
+    CASS_0.6/bin/nodetool -h 127.0.0.1 compact
+
+5. Restart the webserver and continue playing with Twissandra.
+
 ## Schema Layout
 
 In Cassandra, the way that your data is structured is very closely tied to how
 how it will be retrieved.  Let's start with the user ColumnFamily. The key is
-a user id, and the columns are the properties on the user:
+a username, and the columns are the properties on the user:
 
     User = {
-        'a4a70900-24e1-11df-8924-001ff3591711': {
-            'id': 'a4a70900-24e1-11df-8924-001ff3591711',
-            'username': 'ericflo',
+        'hermes': {
             'password': '****',
+            (other properties),
         },
     }
 
-Since some of the URLs on the site actually have the username, we need to be
-able to map from the username to the user id:
-
-    Username = {
-        'ericflo': {
-            'id': 'a4a70900-24e1-11df-8924-001ff3591711',
-        },
-    }
-
-Friends and followers are keyed by the user id, and then the columns are the
-friend user id and follower user ids, and we store a timestamp as the value
-because it's interesting information to have:
+Friends and followers are keyed by the username, and then the columns are the
+friend names and follower names, and we store a timestamp as the value because
+it's interesting information to have:
     
     Friends = {
-        'a4a70900-24e1-11df-8924-001ff3591711': {
+        'hermes': {
             # friend id: timestamp of when the friendship was added
-            '10cf667c-24e2-11df-8924-001ff3591711': '1267413962580791',
-            '343d5db2-24e2-11df-8924-001ff3591711': '1267413990076949',
-            '3f22b5f6-24e2-11df-8924-001ff3591711': '1267414008133277',
+            'larry': '1267413962580791',
+            'curly': '1267413990076949',
+            'moe'  : '1267414008133277',
         },
     }
     
     Followers = {
-        'a4a70900-24e1-11df-8924-001ff3591711': {
+        'hermes': {
             # friend id: timestamp of when the followership was added
-            '10cf667c-24e2-11df-8924-001ff3591711': '1267413962580791',
-            '343d5db2-24e2-11df-8924-001ff3591711': '1267413990076949',
-            '3f22b5f6-24e2-11df-8924-001ff3591711': '1267414008133277',
+            'larry': '1267413962580791',
+            'curly': '1267413990076949',
+            'moe'  : '1267414008133277',
         },
     }
 
-Tweets are stored in a way similar to users:
+Tweets are stored with a tweet id for the key.
 
     Tweet = {
         '7561a442-24e2-11df-8924-001ff3591711': {
-            'id': '89da3178-24e2-11df-8924-001ff3591711',
-            'user_id': 'a4a70900-24e1-11df-8924-001ff3591711',
+            'uname': 'hermes',
             'body': 'Trying out Twissandra. This is awesome!',
-            '_ts': '1267414173047880',
         },
     }
 
 The Timeline and Userline column families keep track of which tweets should
-appear, and in what order.  To that effect, the key is the user id, the column
+appear, and in what order.  To that effect, the key is the username, the column
 name is a timestamp, and the column value is the tweet id:
 
     Timeline = {
-        'a4a70900-24e1-11df-8924-001ff3591711': {
+        'hermes': {
             # timestamp of tweet: tweet id
             1267414247561777: '7561a442-24e2-11df-8924-001ff3591711',
             1267414277402340: 'f0c8d718-24e2-11df-8924-001ff3591711',
@@ -164,7 +175,7 @@ name is a timestamp, and the column value is the tweet id:
     }
     
     Userline = {
-        'a4a70900-24e1-11df-8924-001ff3591711': {
+        'hermes': {
             # timestamp of tweet: tweet id
             1267414247561777: '7561a442-24e2-11df-8924-001ff3591711',
             1267414277402340: 'f0c8d718-24e2-11df-8924-001ff3591711',
