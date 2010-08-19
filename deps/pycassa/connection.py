@@ -1,7 +1,9 @@
 from exceptions import Exception
+import logging
+import random
 import socket
 import threading
-from Queue import Queue
+import time
 
 from thrift import Thrift
 from thrift.transport import TTransport
@@ -14,38 +16,56 @@ __all__ = ['connect', 'connect_thread_local', 'NoServerAvailable']
 
 DEFAULT_SERVER = 'localhost:9160'
 
+log = logging.getLogger('pycassa')
+
 class NoServerAvailable(Exception):
     pass
 
-def create_client_transport(keyspace, server, framed_transport, timeout, credentials):
-    host, port = server.split(":")
-    socket = TSocket.TSocket(host, int(port))
-    if timeout is not None:
-        socket.setTimeout(timeout*1000.0)
-    if framed_transport:
-        transport = TTransport.TFramedTransport(socket)
-    else:
-        transport = TTransport.TBufferedTransport(socket)
-    protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
-    client = Cassandra.Client(protocol)
-    transport.open()
 
-    client.set_keyspace(keyspace)
+class ClientTransport(object):
+    """Encapsulation of a client session."""
 
-    if credentials is not None:
-        request = AuthenticationRequest(credentials=credentials)
-        client.login(request)
+    def __init__(self, keyspace, server, framed_transport, timeout, credentials, recycle):
+        host, port = server.split(":")
+        socket = TSocket.TSocket(host, int(port))
+        if timeout is not None:
+            socket.setTimeout(timeout*1000.0)
+        if framed_transport:
+            transport = TTransport.TFramedTransport(socket)
+        else:
+            transport = TTransport.TBufferedTransport(socket)
+        protocol = TBinaryProtocol.TBinaryProtocolAccelerated(transport)
+        client = Cassandra.Client(protocol)
+        transport.open()
 
-    return client, transport
+        client.set_keyspace(keyspace)
 
-def connect(keyspace, servers=None, framed_transport=False, timeout=None, credentials=None):
+        if credentials is not None:
+            request = AuthenticationRequest(credentials=credentials)
+            client.login(request)
+
+        self.keyspace = keyspace
+        self.client = client
+        self.transport = transport
+
+        if recycle:
+            self.recycle = time.time() + recycle + random.uniform(0, recycle * 0.1)
+        else:
+            self.recycle = None
+
+
+def connect(keyspace, servers=None, framed_transport=True, timeout=None,
+            credentials=None, retry_time=60, recycle=None, round_robin=None):
     """
-    Constructs a single Cassandra connection. Initially connects to the first
+    Constructs a single Cassandra connection. Connects to a randomly chosen
     server on the list.
-    
+
     If the connection fails, it will attempt to connect to each server on the
     list in turn until one succeeds. If it is unable to find an active server,
     it will throw a NoServerAvailable exception.
+
+    Failing servers are kept on a separate list and eventually retried, no
+    sooner than `retry_time` seconds after failure.
 
     Parameters
     ----------
@@ -61,10 +81,21 @@ def connect(keyspace, servers=None, framed_transport=False, timeout=None, creden
               Timeout in seconds (e.g. 0.5)
 
               Default: None (it will stall forever)
+    retry_time: float
+              Minimum time in seconds until a failed server is reinstated. (e.g. 0.5)
+
+              Default: 60
     credentials : dict
               Dictionary of Credentials
 
               Example: {'username':'jsmith', 'password':'havebadpass'}
+    recycle: float
+              Max time in seconds before an open connection is closed and returned to the pool.
+
+              Default: None (Never recycle)
+
+    round_robin: bool
+              *DEPRECATED*
 
     Returns
     -------
@@ -73,167 +104,126 @@ def connect(keyspace, servers=None, framed_transport=False, timeout=None, creden
 
     if servers is None:
         servers = [DEFAULT_SERVER]
-    return SingleConnection(keyspace, servers, framed_transport, timeout, credentials)
+    return ThreadLocalConnection(keyspace, servers, framed_transport, timeout,
+                                 retry_time, recycle, credentials)
 
-def connect_thread_local(keyspace, servers=None, round_robin=True, framed_transport=False, timeout=None, credentials=None):
-    """
-    Constructs a Cassandra connection for each thread. By default, it attempts
-    to connect in a round_robin (load-balancing) fashion. Turn it off by
-    setting round_robin=False
+connect_thread_local = connect
 
-    If the connection fails, it will attempt to connect to each server on the
-    list in turn until one succeeds. If it is unable to find an active server,
-    it will throw a NoServerAvailable exception.
 
-    Parameters
-    ----------
-    keyspace: string
-              The keyspace to associate this connection with.
-    servers : [server]
-              List of Cassandra servers with format: "hostname:port"
+class ServerSet(object):
+    """Automatically balanced set of servers.
+       Manages a separate stack of failed servers, and automatic
+       retrial."""
 
-              Default: ['localhost:9160']
-    round_robin : bool
-              Balance the connections. Set to False to connect to each server
-              in turn.
-    framed_transport: bool
-              If True, use a TFramedTransport instead of a TBufferedTransport
-    timeout: float
-              Timeout in seconds (e.g. 0.5 for half a second)
+    def __init__(self, servers, retry_time=10):
+        self._lock = threading.RLock()
+        self._servers = list(servers)
+        self._retry_time = retry_time
+        self._dead = []
 
-              Default: None (it will stall forever)
-    credentials : dict
-              Dictionary of Credentials
-
-              Example: {'username':'jsmith', 'password':'havebadpass'}
-
-    Returns
-    -------
-    Cassandra client
-    """
-
-    if servers is None:
-        servers = [DEFAULT_SERVER]
-    return ThreadLocalConnection(keyspace, servers, round_robin, framed_transport, timeout, credentials)
-
-class SingleConnection(object):
-    def __init__(self, keyspace, servers, framed_transport, timeout, credentials):
-        self._keyspace = keyspace
-        self._servers = servers
-        self._client = None
-        self._framed_transport = framed_transport
-        self._timeout = timeout
-        self._credentials = credentials
-
-    def __getattr__(self, attr):
-        def client_call(*args, **kwargs):
-            if self._client is None:
-                self._find_server()
-            try:
-                return getattr(self._client, attr)(*args, **kwargs)
-            except (Thrift.TException, socket.timeout, socket.error), exc:
-                # Connection error, try to connect to all the servers
-                self._transport.close()
-                self._client = None
-
-                for server in self._servers:
-                    try:
-                        self._client, self._transport = \
-                            create_client_transport(self._keyspace,
-                                                    server,
-                                                    self._framed_transport,
-                                                    self._timeout,
-                                                    self._credentials)
-                        return getattr(self._client, attr)(*args, **kwargs)
-                    except (Thrift.TException, socket.timeout, socket.error), exc:
-                        continue
-                self._client = None
+    def get(self):
+        self._lock.acquire()
+        try:
+            if self._dead:
+                ts, revived = self._dead.pop()
+                if ts > time.time():  # Not yet, put it back
+                    self._dead.append((ts, revived))
+                else:
+                    self._servers.append(revived)
+                    log.info('Server %r reinstated into working pool', revived)
+            if not self._servers:
+                log.critical('No servers available')
                 raise NoServerAvailable()
+            return random.choice(self._servers)
+        finally:
+            self._lock.release()
 
-        setattr(self, attr, client_call)
-        return getattr(self, attr)
+    def mark_dead(self, server):
+        self._lock.acquire()
+        try:
+            self._servers.remove(server)
+            self._dead.insert(0, (time.time() + self._retry_time, server))
+        finally:
+            self._lock.release()
 
-    def _find_server(self):
-        for server in self._servers:
-            try:
-                self._client, self._transport = \
-                    create_client_transport(self._keyspace,
-                                            server,
-                                            self._framed_transport,
-                                            self._timeout,
-                                            self._credentials)
-                return
-            except (Thrift.TException, socket.timeout, socket.error), exc:
-                continue
-        self._client = None
-        raise NoServerAvailable()
 
 class ThreadLocalConnection(object):
-    def __init__(self, keyspace, servers, round_robin, framed_transport, timeout, credentials):
+    def __init__(self, keyspace, servers, framed_transport=False, timeout=None,
+                 retry_time=10, recycle=None, credentials=None):
         self._keyspace = keyspace
-        self._servers = servers
-        self._queue = Queue()
-        for i in xrange(len(servers)):
-            self._queue.put(i)
-        self._local = threading.local()
-        self._round_robin = round_robin
+        self._servers = ServerSet(servers, retry_time)
         self._framed_transport = framed_transport
         self._timeout = timeout
+        self._recycle = recycle
         self._credentials = credentials
+        self._local = threading.local()
 
     def __getattr__(self, attr):
-        def client_call(*args, **kwargs):
-            if getattr(self._local, 'client', None) is None:
-                self._find_server()
-
+        def _client_call(*args, **kwargs):
             try:
-                return getattr(self._local.client, attr)(*args, **kwargs)
+                conn = self._ensure_connection()
+                return getattr(conn.client, attr)(*args, **kwargs)
             except (Thrift.TException, socket.timeout, socket.error), exc:
-                # Connection error, try to connect to all the servers
-                self._local.transport.close()
-                self._local.client = None
-
-                servers = self._round_robin_servers()
-
-                for server in servers:
-                    try:
-                        self._local.client, self._local.transport = \
-                            create_client_transport(self._keyspace,
-                                                    server,
-                                                    self._framed_transport,
-                                                    self._timeout,
-                                                    self._credentials)
-                        return getattr(self._local.client, attr)(*args, **kwargs)
-                    except (Thrift.TException, socket.timeout, socket.error), exc:
-                        continue
-                self._local.client = None
-                raise NoServerAvailable()
-
-        setattr(self, attr, client_call)
+                log.exception('Client error: %s', exc)
+                self.close()
+                return _client_call(*args, **kwargs) # Retry
+        setattr(self, attr, _client_call)
         return getattr(self, attr)
 
-    def _round_robin_servers(self):
-        servers = self._servers
-        if self._round_robin:
-            i = self._queue.get()
-            self._queue.put(i)
-            servers = servers[i:]+servers[:i]
+    def _ensure_connection(self):
+        """Make certain we have a valid connection and return it."""
+        conn = self.connect()
+        if conn.recycle and conn.recycle < time.time():
+            log.debug('Client session expired after %is. Recycling.', self._recycle)
+            self.close()
+            conn = self.connect()
+        return conn
 
-        return servers
-
-    def _find_server(self):
-        servers = self._round_robin_servers()
-
-        for server in servers:
+    def connect(self):
+        """Create new connection unless we already have one."""
+        if not getattr(self._local, 'conn', None):
             try:
-                self._local.client, self._local.transport = \
-                    create_client_transport(self._keyspace,
-                                            server,
-                                            self._framed_transport,
-                                            self._timeout,
-                                            self._credentials)
-                return
-            except (Thrift.TException, socket.timeout, socket.error), exc:
-                continue
-        self._local.client = None
-        raise NoServerAvailable()
+                server = self._servers.get()
+                log.debug('Connecting to %s', server)
+                self._local.conn = ClientTransport(self._keyspace, server, self._framed_transport,
+                                                   self._timeout, self._credentials, self._recycle)
+            except (Thrift.TException, socket.timeout, socket.error):
+                log.warning('Connection to %s failed.', server)
+                self._servers.mark_dead(server)
+                return self.connect()
+        return self._local.conn
+
+    def close(self):
+        """If a connection is open, close its transport."""
+        if self._local.conn:
+            self._local.conn.transport.close()
+        self._local.conn = None
+
+    def get_keyspace_description(self, keyspace=None):
+        """
+        Describes the given keyspace.
+        
+        Parameters
+        ----------
+        keyspace: str
+                  Defaults to the current keyspace.
+
+        Returns
+        -------
+        {column_family_name: CfDef}
+        where a CfDef has many attributes describing the column family, including
+        the dictionary column_metadata = {column_name: ColumnDef}
+        """
+        if keyspace is None:
+            keyspace = self._keyspace
+
+        ks_def = self.describe_keyspace(keyspace)
+        cf_defs = dict()
+        for cf_def in ks_def.cf_defs:
+            cf_defs[cf_def.name] = cf_def
+            old_metadata = cf_def.column_metadata
+            new_metadata = dict()
+            for datum in old_metadata:
+                new_metadata[datum.name] = datum
+            cf_def.column_metadata = new_metadata
+        return cf_defs

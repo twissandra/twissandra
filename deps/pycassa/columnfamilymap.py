@@ -1,4 +1,5 @@
 from pycassa.types import Column
+from cassandra.ttypes import IndexExpression
 
 __all__ = ['ColumnFamilyMap']
 
@@ -97,6 +98,72 @@ class ColumnFamilyMap(object):
 
         combined = self.combine_columns(columns)
         return create_instance(self.cls, key=key, **combined)
+
+    def get_indexed_slices(self, instance=None, *args, **kwargs):
+        """
+        Fetches a list of KeySlices from a Cassandra server based on an index clause
+        
+        Parameters
+        ----------
+        index_clause : IndexClause
+            Limits the keys that are returned based on expressions that compare
+            the value of a column to a given value.  At least one of the
+            expressions in the IndexClause must be on an indexed column.
+            See index_clause.create_index_clause() and create_index_expression().
+        columns : [str]
+            Limit the columns or super_columns fetched to the specified list
+        column_start : str
+            Only fetch when a column or super_column is >= column_start
+        column_finish : str
+            Only fetch when a column or super_column is <= column_finish
+        column_reversed : bool
+            Fetch the columns or super_columns in reverse order. This will do
+            nothing unless you passed a dict_class to the constructor.
+        column_count : int
+            Limit the number of columns or super_columns fetched per key
+        include_timestamp : bool
+            If true, return a (value, timestamp) tuple for each column
+        super_column : str
+            Return columns only in this super_column
+        read_consistency_level : ConsistencyLevel
+            Affects the guaranteed replication factor before returning from
+            any read operation
+
+        Returns
+        -------
+        Class instance
+        """
+
+        if 'columns' not in kwargs and not self.column_family.super and not self.raw_columns:
+            kwargs['columns'] = self.columns.keys()
+
+        # Autopack the index clause's values
+        if instance is not None:
+            new_exprs = []
+            for expr in kwargs['index_clause'].expressions:
+                new_expr = IndexExpression(expr.column_name, expr.op, 
+                        value=self.columns[expr.column_name].pack(instance.__dict__[expr.column_name]))
+                new_exprs.append(new_expr)
+            kwargs['index_clause'].expressions = new_exprs
+
+        keyslice_map = self.column_family.get_indexed_slices(*args, **kwargs)
+
+        ret = self.dict_class()
+        for key, columns in keyslice_map.iteritems():
+            if self.column_family.super:
+                if 'super_column' not in kwargs:
+                    vals = self.dict_class()
+                    for super_column, subcols in columns.iteritems():
+                        combined = self.combine_columns(subcols)
+                        vals[super_column] = create_instance(self.cls, key=key, super_column=super_column, **combined)
+                    ret[key] = vals
+                else:
+                    combined = self.combine_columns(columns)
+                    ret[key] = create_instance(self.cls, key=key, super_column=kwargs['super_column'], **combined)
+            else:
+                combined = self.combine_columns(columns)
+                ret[key] = create_instance(self.cls, key=key, **combined)
+        return ret
 
     def multiget(self, *args, **kwargs):
         """

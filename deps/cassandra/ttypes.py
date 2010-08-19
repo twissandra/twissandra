@@ -70,6 +70,17 @@ class ConsistencyLevel:
     "ANY": 6,
   }
 
+class IndexOperator:
+  EQ = 0
+
+  _VALUES_TO_NAMES = {
+    0: "EQ",
+  }
+
+  _NAMES_TO_VALUES = {
+    "EQ": 0,
+  }
+
 class AccessLevel:
   """
   The AccessLevel is an enum that expresses the authorized access level granted to an API user:
@@ -96,6 +107,17 @@ class AccessLevel:
     "READONLY": 16,
     "READWRITE": 32,
     "FULL": 64,
+  }
+
+class IndexType:
+  KEYS = 0
+
+  _VALUES_TO_NAMES = {
+    0: "KEYS",
+  }
+
+  _NAMES_TO_VALUES = {
+    "KEYS": 0,
   }
 
 class Clock:
@@ -914,18 +936,16 @@ class SliceRange:
                  and can be safely set to an empty byte array to not stop until 'count' results are seen. Otherwise, it
                  must also be a valid value to the ColumnFamily Comparator.
   @param reversed. Whether the results should be ordered in reversed order. Similar to ORDER BY blah DESC in SQL.
-  @param count. How many keys to return. Similar to LIMIT 100 in SQL. May be arbitrarily large, but Thrift will
+  @param count. How many columns to return. Similar to LIMIT in SQL. May be arbitrarily large, but Thrift will
                 materialize the whole result into memory before returning it to the client, so be aware that you may
                 be better served by iterating through slices by passing the last value of one call in as the 'start'
                 of the next instead of increasing 'count' arbitrarily large.
-  @param bitmasks. A list of OR-ed binary AND masks applied to the result set.
   
   Attributes:
    - start
    - finish
    - reversed
    - count
-   - bitmasks
   """
 
   thrift_spec = (
@@ -934,15 +954,13 @@ class SliceRange:
     (2, TType.STRING, 'finish', None, None, ), # 2
     (3, TType.BOOL, 'reversed', None, False, ), # 3
     (4, TType.I32, 'count', None, 100, ), # 4
-    (5, TType.LIST, 'bitmasks', (TType.STRING,None), None, ), # 5
   )
 
-  def __init__(self, start=None, finish=None, reversed=thrift_spec[3][4], count=thrift_spec[4][4], bitmasks=None,):
+  def __init__(self, start=None, finish=None, reversed=thrift_spec[3][4], count=thrift_spec[4][4],):
     self.start = start
     self.finish = finish
     self.reversed = reversed
     self.count = count
-    self.bitmasks = bitmasks
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -973,16 +991,6 @@ class SliceRange:
           self.count = iprot.readI32();
         else:
           iprot.skip(ftype)
-      elif fid == 5:
-        if ftype == TType.LIST:
-          self.bitmasks = []
-          (_etype10, _size7) = iprot.readListBegin()
-          for _i11 in xrange(_size7):
-            _elem12 = iprot.readString();
-            self.bitmasks.append(_elem12)
-          iprot.readListEnd()
-        else:
-          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -1008,13 +1016,6 @@ class SliceRange:
     if self.count != None:
       oprot.writeFieldBegin('count', TType.I32, 4)
       oprot.writeI32(self.count)
-      oprot.writeFieldEnd()
-    if self.bitmasks != None:
-      oprot.writeFieldBegin('bitmasks', TType.LIST, 5)
-      oprot.writeListBegin(TType.STRING, len(self.bitmasks))
-      for iter13 in self.bitmasks:
-        oprot.writeString(iter13)
-      oprot.writeListEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -1070,10 +1071,10 @@ class SlicePredicate:
       if fid == 1:
         if ftype == TType.LIST:
           self.column_names = []
-          (_etype17, _size14) = iprot.readListBegin()
-          for _i18 in xrange(_size14):
-            _elem19 = iprot.readString();
-            self.column_names.append(_elem19)
+          (_etype10, _size7) = iprot.readListBegin()
+          for _i11 in xrange(_size7):
+            _elem12 = iprot.readString();
+            self.column_names.append(_elem12)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -1096,13 +1097,182 @@ class SlicePredicate:
     if self.column_names != None:
       oprot.writeFieldBegin('column_names', TType.LIST, 1)
       oprot.writeListBegin(TType.STRING, len(self.column_names))
-      for iter20 in self.column_names:
-        oprot.writeString(iter20)
+      for iter13 in self.column_names:
+        oprot.writeString(iter13)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.slice_range != None:
       oprot.writeFieldBegin('slice_range', TType.STRUCT, 2)
       self.slice_range.write(oprot)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class IndexExpression:
+  """
+  Attributes:
+   - column_name
+   - op
+   - value
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'column_name', None, None, ), # 1
+    (2, TType.I32, 'op', None, None, ), # 2
+    (3, TType.STRING, 'value', None, None, ), # 3
+  )
+
+  def __init__(self, column_name=None, op=None, value=None,):
+    self.column_name = column_name
+    self.op = op
+    self.value = value
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.column_name = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.I32:
+          self.op = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.STRING:
+          self.value = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('IndexExpression')
+    if self.column_name != None:
+      oprot.writeFieldBegin('column_name', TType.STRING, 1)
+      oprot.writeString(self.column_name)
+      oprot.writeFieldEnd()
+    if self.op != None:
+      oprot.writeFieldBegin('op', TType.I32, 2)
+      oprot.writeI32(self.op)
+      oprot.writeFieldEnd()
+    if self.value != None:
+      oprot.writeFieldBegin('value', TType.STRING, 3)
+      oprot.writeString(self.value)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class IndexClause:
+  """
+  Attributes:
+   - expressions
+   - start_key
+   - count
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.LIST, 'expressions', (TType.STRUCT,(IndexExpression, IndexExpression.thrift_spec)), None, ), # 1
+    (2, TType.STRING, 'start_key', None, None, ), # 2
+    (3, TType.I32, 'count', None, 100, ), # 3
+  )
+
+  def __init__(self, expressions=None, start_key=None, count=thrift_spec[3][4],):
+    self.expressions = expressions
+    self.start_key = start_key
+    self.count = count
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.LIST:
+          self.expressions = []
+          (_etype17, _size14) = iprot.readListBegin()
+          for _i18 in xrange(_size14):
+            _elem19 = IndexExpression()
+            _elem19.read(iprot)
+            self.expressions.append(_elem19)
+          iprot.readListEnd()
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.STRING:
+          self.start_key = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.I32:
+          self.count = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('IndexClause')
+    if self.expressions != None:
+      oprot.writeFieldBegin('expressions', TType.LIST, 1)
+      oprot.writeListBegin(TType.STRUCT, len(self.expressions))
+      for iter20 in self.expressions:
+        iter20.write(oprot)
+      oprot.writeListEnd()
+      oprot.writeFieldEnd()
+    if self.start_key != None:
+      oprot.writeFieldBegin('start_key', TType.STRING, 2)
+      oprot.writeString(self.start_key)
+      oprot.writeFieldEnd()
+    if self.count != None:
+      oprot.writeFieldBegin('count', TType.I32, 3)
+      oprot.writeI32(self.count)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -1297,6 +1467,74 @@ class KeySlice:
       for iter27 in self.columns:
         iter27.write(oprot)
       oprot.writeListEnd()
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class KeyCount:
+  """
+  Attributes:
+   - key
+   - count
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'key', None, None, ), # 1
+    (2, TType.I32, 'count', None, None, ), # 2
+  )
+
+  def __init__(self, key=None, count=None,):
+    self.key = key
+    self.count = count
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.key = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.I32:
+          self.count = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('KeyCount')
+    if self.key != None:
+      oprot.writeFieldBegin('key', TType.STRING, 1)
+      oprot.writeString(self.key)
+      oprot.writeFieldEnd()
+    if self.count != None:
+      oprot.writeFieldBegin('count', TType.I32, 2)
+      oprot.writeI32(self.count)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -1624,46 +1862,28 @@ class AuthenticationRequest:
   def __ne__(self, other):
     return not (self == other)
 
-class CfDef:
+class ColumnDef:
   """
   Attributes:
-   - table
    - name
-   - column_type
-   - clock_type
-   - comparator_type
-   - subcomparator_type
-   - comment
-   - row_cache_size
-   - preload_row_cache
-   - key_cache_size
+   - validation_class
+   - index_type
+   - index_name
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'table', None, None, ), # 1
-    (2, TType.STRING, 'name', None, None, ), # 2
-    (3, TType.STRING, 'column_type', None, "Standard", ), # 3
-    (4, TType.STRING, 'clock_type', None, "Timestamp", ), # 4
-    (5, TType.STRING, 'comparator_type', None, "BytesType", ), # 5
-    (6, TType.STRING, 'subcomparator_type', None, "", ), # 6
-    (7, TType.STRING, 'comment', None, "", ), # 7
-    (8, TType.DOUBLE, 'row_cache_size', None, 0, ), # 8
-    (9, TType.BOOL, 'preload_row_cache', None, False, ), # 9
-    (10, TType.DOUBLE, 'key_cache_size', None, 200000, ), # 10
+    (1, TType.STRING, 'name', None, None, ), # 1
+    (2, TType.STRING, 'validation_class', None, None, ), # 2
+    (3, TType.I32, 'index_type', None, None, ), # 3
+    (4, TType.STRING, 'index_name', None, None, ), # 4
   )
 
-  def __init__(self, table=None, name=None, column_type=thrift_spec[3][4], clock_type=thrift_spec[4][4], comparator_type=thrift_spec[5][4], subcomparator_type=thrift_spec[6][4], comment=thrift_spec[7][4], row_cache_size=thrift_spec[8][4], preload_row_cache=thrift_spec[9][4], key_cache_size=thrift_spec[10][4],):
-    self.table = table
+  def __init__(self, name=None, validation_class=None, index_type=None, index_name=None,):
     self.name = name
-    self.column_type = column_type
-    self.clock_type = clock_type
-    self.comparator_type = comparator_type
-    self.subcomparator_type = subcomparator_type
-    self.comment = comment
-    self.row_cache_size = row_cache_size
-    self.preload_row_cache = preload_row_cache
-    self.key_cache_size = key_cache_size
+    self.validation_class = validation_class
+    self.index_type = index_type
+    self.index_name = index_name
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -1676,7 +1896,129 @@ class CfDef:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.table = iprot.readString();
+          self.name = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.STRING:
+          self.validation_class = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.I32:
+          self.index_type = iprot.readI32();
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
+        if ftype == TType.STRING:
+          self.index_name = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('ColumnDef')
+    if self.name != None:
+      oprot.writeFieldBegin('name', TType.STRING, 1)
+      oprot.writeString(self.name)
+      oprot.writeFieldEnd()
+    if self.validation_class != None:
+      oprot.writeFieldBegin('validation_class', TType.STRING, 2)
+      oprot.writeString(self.validation_class)
+      oprot.writeFieldEnd()
+    if self.index_type != None:
+      oprot.writeFieldBegin('index_type', TType.I32, 3)
+      oprot.writeI32(self.index_type)
+      oprot.writeFieldEnd()
+    if self.index_name != None:
+      oprot.writeFieldBegin('index_name', TType.STRING, 4)
+      oprot.writeString(self.index_name)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class CfDef:
+  """
+  Attributes:
+   - keyspace
+   - name
+   - column_type
+   - clock_type
+   - comparator_type
+   - subcomparator_type
+   - reconciler
+   - comment
+   - row_cache_size
+   - preload_row_cache
+   - key_cache_size
+   - read_repair_chance
+   - column_metadata
+   - gc_grace_seconds
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'keyspace', None, None, ), # 1
+    (2, TType.STRING, 'name', None, None, ), # 2
+    (3, TType.STRING, 'column_type', None, "Standard", ), # 3
+    (4, TType.STRING, 'clock_type', None, "Timestamp", ), # 4
+    (5, TType.STRING, 'comparator_type', None, "BytesType", ), # 5
+    (6, TType.STRING, 'subcomparator_type', None, "", ), # 6
+    (7, TType.STRING, 'reconciler', None, "", ), # 7
+    (8, TType.STRING, 'comment', None, "", ), # 8
+    (9, TType.DOUBLE, 'row_cache_size', None, 0, ), # 9
+    (10, TType.BOOL, 'preload_row_cache', None, False, ), # 10
+    (11, TType.DOUBLE, 'key_cache_size', None, 200000, ), # 11
+    (12, TType.DOUBLE, 'read_repair_chance', None, 1, ), # 12
+    (13, TType.LIST, 'column_metadata', (TType.STRUCT,(ColumnDef, ColumnDef.thrift_spec)), None, ), # 13
+    (14, TType.I32, 'gc_grace_seconds', None, None, ), # 14
+  )
+
+  def __init__(self, keyspace=None, name=None, column_type=thrift_spec[3][4], clock_type=thrift_spec[4][4], comparator_type=thrift_spec[5][4], subcomparator_type=thrift_spec[6][4], reconciler=thrift_spec[7][4], comment=thrift_spec[8][4], row_cache_size=thrift_spec[9][4], preload_row_cache=thrift_spec[10][4], key_cache_size=thrift_spec[11][4], read_repair_chance=thrift_spec[12][4], column_metadata=None, gc_grace_seconds=None,):
+    self.keyspace = keyspace
+    self.name = name
+    self.column_type = column_type
+    self.clock_type = clock_type
+    self.comparator_type = comparator_type
+    self.subcomparator_type = subcomparator_type
+    self.reconciler = reconciler
+    self.comment = comment
+    self.row_cache_size = row_cache_size
+    self.preload_row_cache = preload_row_cache
+    self.key_cache_size = key_cache_size
+    self.read_repair_chance = read_repair_chance
+    self.column_metadata = column_metadata
+    self.gc_grace_seconds = gc_grace_seconds
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.keyspace = iprot.readString();
         else:
           iprot.skip(ftype)
       elif fid == 2:
@@ -1706,22 +2048,48 @@ class CfDef:
           iprot.skip(ftype)
       elif fid == 7:
         if ftype == TType.STRING:
-          self.comment = iprot.readString();
+          self.reconciler = iprot.readString();
         else:
           iprot.skip(ftype)
       elif fid == 8:
+        if ftype == TType.STRING:
+          self.comment = iprot.readString();
+        else:
+          iprot.skip(ftype)
+      elif fid == 9:
         if ftype == TType.DOUBLE:
           self.row_cache_size = iprot.readDouble();
         else:
           iprot.skip(ftype)
-      elif fid == 9:
+      elif fid == 10:
         if ftype == TType.BOOL:
           self.preload_row_cache = iprot.readBool();
         else:
           iprot.skip(ftype)
-      elif fid == 10:
+      elif fid == 11:
         if ftype == TType.DOUBLE:
           self.key_cache_size = iprot.readDouble();
+        else:
+          iprot.skip(ftype)
+      elif fid == 12:
+        if ftype == TType.DOUBLE:
+          self.read_repair_chance = iprot.readDouble();
+        else:
+          iprot.skip(ftype)
+      elif fid == 13:
+        if ftype == TType.LIST:
+          self.column_metadata = []
+          (_etype47, _size44) = iprot.readListBegin()
+          for _i48 in xrange(_size44):
+            _elem49 = ColumnDef()
+            _elem49.read(iprot)
+            self.column_metadata.append(_elem49)
+          iprot.readListEnd()
+        else:
+          iprot.skip(ftype)
+      elif fid == 14:
+        if ftype == TType.I32:
+          self.gc_grace_seconds = iprot.readI32();
         else:
           iprot.skip(ftype)
       else:
@@ -1734,9 +2102,9 @@ class CfDef:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('CfDef')
-    if self.table != None:
-      oprot.writeFieldBegin('table', TType.STRING, 1)
-      oprot.writeString(self.table)
+    if self.keyspace != None:
+      oprot.writeFieldBegin('keyspace', TType.STRING, 1)
+      oprot.writeString(self.keyspace)
       oprot.writeFieldEnd()
     if self.name != None:
       oprot.writeFieldBegin('name', TType.STRING, 2)
@@ -1758,21 +2126,40 @@ class CfDef:
       oprot.writeFieldBegin('subcomparator_type', TType.STRING, 6)
       oprot.writeString(self.subcomparator_type)
       oprot.writeFieldEnd()
+    if self.reconciler != None:
+      oprot.writeFieldBegin('reconciler', TType.STRING, 7)
+      oprot.writeString(self.reconciler)
+      oprot.writeFieldEnd()
     if self.comment != None:
-      oprot.writeFieldBegin('comment', TType.STRING, 7)
+      oprot.writeFieldBegin('comment', TType.STRING, 8)
       oprot.writeString(self.comment)
       oprot.writeFieldEnd()
     if self.row_cache_size != None:
-      oprot.writeFieldBegin('row_cache_size', TType.DOUBLE, 8)
+      oprot.writeFieldBegin('row_cache_size', TType.DOUBLE, 9)
       oprot.writeDouble(self.row_cache_size)
       oprot.writeFieldEnd()
     if self.preload_row_cache != None:
-      oprot.writeFieldBegin('preload_row_cache', TType.BOOL, 9)
+      oprot.writeFieldBegin('preload_row_cache', TType.BOOL, 10)
       oprot.writeBool(self.preload_row_cache)
       oprot.writeFieldEnd()
     if self.key_cache_size != None:
-      oprot.writeFieldBegin('key_cache_size', TType.DOUBLE, 10)
+      oprot.writeFieldBegin('key_cache_size', TType.DOUBLE, 11)
       oprot.writeDouble(self.key_cache_size)
+      oprot.writeFieldEnd()
+    if self.read_repair_chance != None:
+      oprot.writeFieldBegin('read_repair_chance', TType.DOUBLE, 12)
+      oprot.writeDouble(self.read_repair_chance)
+      oprot.writeFieldEnd()
+    if self.column_metadata != None:
+      oprot.writeFieldBegin('column_metadata', TType.LIST, 13)
+      oprot.writeListBegin(TType.STRUCT, len(self.column_metadata))
+      for iter50 in self.column_metadata:
+        iter50.write(oprot)
+      oprot.writeListEnd()
+      oprot.writeFieldEnd()
+    if self.gc_grace_seconds != None:
+      oprot.writeFieldBegin('gc_grace_seconds', TType.I32, 14)
+      oprot.writeI32(self.gc_grace_seconds)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -1793,6 +2180,7 @@ class KsDef:
   Attributes:
    - name
    - strategy_class
+   - strategy_options
    - replication_factor
    - cf_defs
   """
@@ -1801,14 +2189,15 @@ class KsDef:
     None, # 0
     (1, TType.STRING, 'name', None, None, ), # 1
     (2, TType.STRING, 'strategy_class', None, None, ), # 2
-    (3, TType.I32, 'replication_factor', None, None, ), # 3
-    None, # 4
+    (3, TType.MAP, 'strategy_options', (TType.STRING,None,TType.STRING,None), None, ), # 3
+    (4, TType.I32, 'replication_factor', None, None, ), # 4
     (5, TType.LIST, 'cf_defs', (TType.STRUCT,(CfDef, CfDef.thrift_spec)), None, ), # 5
   )
 
-  def __init__(self, name=None, strategy_class=None, replication_factor=None, cf_defs=None,):
+  def __init__(self, name=None, strategy_class=None, strategy_options=None, replication_factor=None, cf_defs=None,):
     self.name = name
     self.strategy_class = strategy_class
+    self.strategy_options = strategy_options
     self.replication_factor = replication_factor
     self.cf_defs = cf_defs
 
@@ -1832,6 +2221,17 @@ class KsDef:
         else:
           iprot.skip(ftype)
       elif fid == 3:
+        if ftype == TType.MAP:
+          self.strategy_options = {}
+          (_ktype52, _vtype53, _size51 ) = iprot.readMapBegin() 
+          for _i55 in xrange(_size51):
+            _key56 = iprot.readString();
+            _val57 = iprot.readString();
+            self.strategy_options[_key56] = _val57
+          iprot.readMapEnd()
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
         if ftype == TType.I32:
           self.replication_factor = iprot.readI32();
         else:
@@ -1839,11 +2239,11 @@ class KsDef:
       elif fid == 5:
         if ftype == TType.LIST:
           self.cf_defs = []
-          (_etype47, _size44) = iprot.readListBegin()
-          for _i48 in xrange(_size44):
-            _elem49 = CfDef()
-            _elem49.read(iprot)
-            self.cf_defs.append(_elem49)
+          (_etype61, _size58) = iprot.readListBegin()
+          for _i62 in xrange(_size58):
+            _elem63 = CfDef()
+            _elem63.read(iprot)
+            self.cf_defs.append(_elem63)
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
@@ -1865,15 +2265,23 @@ class KsDef:
       oprot.writeFieldBegin('strategy_class', TType.STRING, 2)
       oprot.writeString(self.strategy_class)
       oprot.writeFieldEnd()
+    if self.strategy_options != None:
+      oprot.writeFieldBegin('strategy_options', TType.MAP, 3)
+      oprot.writeMapBegin(TType.STRING, TType.STRING, len(self.strategy_options))
+      for kiter64,viter65 in self.strategy_options.items():
+        oprot.writeString(kiter64)
+        oprot.writeString(viter65)
+      oprot.writeMapEnd()
+      oprot.writeFieldEnd()
     if self.replication_factor != None:
-      oprot.writeFieldBegin('replication_factor', TType.I32, 3)
+      oprot.writeFieldBegin('replication_factor', TType.I32, 4)
       oprot.writeI32(self.replication_factor)
       oprot.writeFieldEnd()
     if self.cf_defs != None:
       oprot.writeFieldBegin('cf_defs', TType.LIST, 5)
       oprot.writeListBegin(TType.STRUCT, len(self.cf_defs))
-      for iter50 in self.cf_defs:
-        iter50.write(oprot)
+      for iter66 in self.cf_defs:
+        iter66.write(oprot)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
