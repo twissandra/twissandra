@@ -81,10 +81,10 @@ def _get_line(cf, user_id, start, limit):
     Gets a timeline or a userline given a user id, a start, and a limit.
     """
     # First we need to get the raw timeline (in the form of tweet ids)
-    start = _long(start) if start else ''
+    c_start = start if start else ''
     try:
-        timeline = cf.get(str(user_id), column_start=start, column_count=limit,
-            column_reversed=True)
+        timeline = cf.get(str(user_id), column_start=c_start,
+            column_count=limit, column_reversed=True)
     except NotFoundException:
         return []
     # Now we do a multiget to get the tweets themselves
@@ -206,9 +206,8 @@ def save_tweet(tweet_id, user_id, tweet):
     Saves the tweet record.
     """
     # Generate a timestamp, and put it in the tweet record
-    raw_ts = int(time.time() * 1e6)
-    tweet['_ts'] = str(raw_ts)
-    ts = _long(raw_ts)
+    ts = int(time.time() * 1e6)
+    tweet['_ts'] = str(ts)
     # Insert the tweet, then into the user's timeline, then into the public one
     TWEET.insert(str(tweet_id), tweet)
     USERLINE.insert(str(user_id), {ts: str(tweet_id)})
