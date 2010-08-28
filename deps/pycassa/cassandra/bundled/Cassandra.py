@@ -80,12 +80,11 @@ class Iface:
     """
     pass
 
-  def multiget_count(self, keyspace, keys, column_parent, predicate, consistency_level):
+  def multiget_count(self, keys, column_parent, predicate, consistency_level):
     """
     Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
     
     Parameters:
-     - keyspace
      - keys
      - column_parent
      - predicate
@@ -314,7 +313,7 @@ class Client(Iface):
      - auth_request
     """
     self.send_login(auth_request)
-    return self.recv_login()
+    self.recv_login()
 
   def send_login(self, auth_request):
     self._oprot.writeMessageBegin('login', TMessageType.CALL, self._seqid)
@@ -334,13 +333,11 @@ class Client(Iface):
     result = login_result()
     result.read(self._iprot)
     self._iprot.readMessageEnd()
-    if result.success != None:
-      return result.success
     if result.authnx != None:
       raise result.authnx
     if result.authzx != None:
       raise result.authzx
-    raise TApplicationException(TApplicationException.MISSING_RESULT, "login failed: unknown result");
+    return
 
   def set_keyspace(self, keyspace):
     """
@@ -551,24 +548,22 @@ class Client(Iface):
       raise result.te
     raise TApplicationException(TApplicationException.MISSING_RESULT, "multiget_slice failed: unknown result");
 
-  def multiget_count(self, keyspace, keys, column_parent, predicate, consistency_level):
+  def multiget_count(self, keys, column_parent, predicate, consistency_level):
     """
     Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
     
     Parameters:
-     - keyspace
      - keys
      - column_parent
      - predicate
      - consistency_level
     """
-    self.send_multiget_count(keyspace, keys, column_parent, predicate, consistency_level)
+    self.send_multiget_count(keys, column_parent, predicate, consistency_level)
     return self.recv_multiget_count()
 
-  def send_multiget_count(self, keyspace, keys, column_parent, predicate, consistency_level):
+  def send_multiget_count(self, keys, column_parent, predicate, consistency_level):
     self._oprot.writeMessageBegin('multiget_count', TMessageType.CALL, self._seqid)
     args = multiget_count_args()
-    args.keyspace = keyspace
     args.keys = keys
     args.column_parent = column_parent
     args.predicate = predicate
@@ -1376,7 +1371,7 @@ class Processor(Iface, TProcessor):
     iprot.readMessageEnd()
     result = login_result()
     try:
-      result.success = self._handler.login(args.auth_request)
+      self._handler.login(args.auth_request)
     except AuthenticationException, authnx:
       result.authnx = authnx
     except AuthorizationException, authzx:
@@ -1480,7 +1475,7 @@ class Processor(Iface, TProcessor):
     iprot.readMessageEnd()
     result = multiget_count_result()
     try:
-      result.success = self._handler.multiget_count(args.keyspace, args.keys, args.column_parent, args.predicate, args.consistency_level)
+      result.success = self._handler.multiget_count(args.keys, args.column_parent, args.predicate, args.consistency_level)
     except InvalidRequestException, ire:
       result.ire = ire
     except UnavailableException, ue:
@@ -1842,19 +1837,17 @@ class login_args:
 class login_result:
   """
   Attributes:
-   - success
    - authnx
    - authzx
   """
 
   thrift_spec = (
-    (0, TType.I32, 'success', None, None, ), # 0
+    None, # 0
     (1, TType.STRUCT, 'authnx', (AuthenticationException, AuthenticationException.thrift_spec), None, ), # 1
     (2, TType.STRUCT, 'authzx', (AuthorizationException, AuthorizationException.thrift_spec), None, ), # 2
   )
 
-  def __init__(self, success=None, authnx=None, authzx=None,):
-    self.success = success
+  def __init__(self, authnx=None, authzx=None,):
     self.authnx = authnx
     self.authzx = authzx
 
@@ -1867,12 +1860,7 @@ class login_result:
       (fname, ftype, fid) = iprot.readFieldBegin()
       if ftype == TType.STOP:
         break
-      if fid == 0:
-        if ftype == TType.I32:
-          self.success = iprot.readI32();
-        else:
-          iprot.skip(ftype)
-      elif fid == 1:
+      if fid == 1:
         if ftype == TType.STRUCT:
           self.authnx = AuthenticationException()
           self.authnx.read(iprot)
@@ -1894,10 +1882,6 @@ class login_result:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('login_result')
-    if self.success != None:
-      oprot.writeFieldBegin('success', TType.I32, 0)
-      oprot.writeI32(self.success)
-      oprot.writeFieldEnd()
     if self.authnx != None:
       oprot.writeFieldBegin('authnx', TType.STRUCT, 1)
       self.authnx.write(oprot)
@@ -2825,7 +2809,6 @@ class multiget_slice_result:
 class multiget_count_args:
   """
   Attributes:
-   - keyspace
    - keys
    - column_parent
    - predicate
@@ -2834,15 +2817,13 @@ class multiget_count_args:
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'keyspace', None, None, ), # 1
-    (2, TType.LIST, 'keys', (TType.STRING,None), None, ), # 2
-    (3, TType.STRUCT, 'column_parent', (ColumnParent, ColumnParent.thrift_spec), None, ), # 3
-    (4, TType.STRUCT, 'predicate', (SlicePredicate, SlicePredicate.thrift_spec), None, ), # 4
-    (5, TType.I32, 'consistency_level', None,     1, ), # 5
+    (1, TType.LIST, 'keys', (TType.STRING,None), None, ), # 1
+    (2, TType.STRUCT, 'column_parent', (ColumnParent, ColumnParent.thrift_spec), None, ), # 2
+    (3, TType.STRUCT, 'predicate', (SlicePredicate, SlicePredicate.thrift_spec), None, ), # 3
+    (4, TType.I32, 'consistency_level', None,     1, ), # 4
   )
 
-  def __init__(self, keyspace=None, keys=None, column_parent=None, predicate=None, consistency_level=thrift_spec[5][4],):
-    self.keyspace = keyspace
+  def __init__(self, keys=None, column_parent=None, predicate=None, consistency_level=thrift_spec[4][4],):
     self.keys = keys
     self.column_parent = column_parent
     self.predicate = predicate
@@ -2858,11 +2839,6 @@ class multiget_count_args:
       if ftype == TType.STOP:
         break
       if fid == 1:
-        if ftype == TType.STRING:
-          self.keyspace = iprot.readString();
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
         if ftype == TType.LIST:
           self.keys = []
           (_etype100, _size97) = iprot.readListBegin()
@@ -2872,19 +2848,19 @@ class multiget_count_args:
           iprot.readListEnd()
         else:
           iprot.skip(ftype)
-      elif fid == 3:
+      elif fid == 2:
         if ftype == TType.STRUCT:
           self.column_parent = ColumnParent()
           self.column_parent.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 4:
+      elif fid == 3:
         if ftype == TType.STRUCT:
           self.predicate = SlicePredicate()
           self.predicate.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 5:
+      elif fid == 4:
         if ftype == TType.I32:
           self.consistency_level = iprot.readI32();
         else:
@@ -2899,27 +2875,23 @@ class multiget_count_args:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('multiget_count_args')
-    if self.keyspace != None:
-      oprot.writeFieldBegin('keyspace', TType.STRING, 1)
-      oprot.writeString(self.keyspace)
-      oprot.writeFieldEnd()
     if self.keys != None:
-      oprot.writeFieldBegin('keys', TType.LIST, 2)
+      oprot.writeFieldBegin('keys', TType.LIST, 1)
       oprot.writeListBegin(TType.STRING, len(self.keys))
       for iter103 in self.keys:
         oprot.writeString(iter103)
       oprot.writeListEnd()
       oprot.writeFieldEnd()
     if self.column_parent != None:
-      oprot.writeFieldBegin('column_parent', TType.STRUCT, 3)
+      oprot.writeFieldBegin('column_parent', TType.STRUCT, 2)
       self.column_parent.write(oprot)
       oprot.writeFieldEnd()
     if self.predicate != None:
-      oprot.writeFieldBegin('predicate', TType.STRUCT, 4)
+      oprot.writeFieldBegin('predicate', TType.STRUCT, 3)
       self.predicate.write(oprot)
       oprot.writeFieldEnd()
     if self.consistency_level != None:
-      oprot.writeFieldBegin('consistency_level', TType.I32, 5)
+      oprot.writeFieldBegin('consistency_level', TType.I32, 4)
       oprot.writeI32(self.consistency_level)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()

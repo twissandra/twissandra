@@ -11,6 +11,9 @@ import struct
 __all__ = ['gm_timestamp', 'ColumnFamily']
 _TYPES = ['BytesType', 'LongType', 'IntegerType', 'UTF8Type', 'AsciiType',
          'LexicalUUIDType', 'TimeUUIDType']
+_NON_SLICE = 0
+_SLICE_START = 1
+_SLICE_FINISH = 2
 
 def gm_timestamp():
     """
@@ -75,7 +78,7 @@ class ColumnFamily(object):
         autopack_values : bool
             Whether column values should be packed automatically based on
             the validator_class for a given column.  This should probably
-            be set to False when used with a ColumnFamilyMap.       
+            be set to False when used with a ColumnFamilyMap.
         """
         self.client = client
         self.column_family = column_family
@@ -113,7 +116,7 @@ class ColumnFamily(object):
             if self.autopack_values:
                 for name, cdef in col_fam.column_metadata.items():
                     self.col_type_dict[name] = self._extract_type_name(cdef.validation_class)
-            
+
 
     def _extract_type_name(self, string):
 
@@ -171,7 +174,21 @@ class ColumnFamily(object):
             return self.write_consistency_level
         return alternative
 
-    def _pack_name(self, value, is_supercol_name=False):
+    def _pack_slice_cols(self, super_column, column_start, column_finish):
+        if super_column != '':
+            super_column = self._pack_name(super_column, is_supercol_name=True)
+        if column_start != '':
+            column_start = self._pack_name(column_start,
+                                           is_supercol_name=self.super,
+                                           slice_end=_SLICE_START)
+        if column_finish != '':
+            column_finish = self._pack_name(column_finish,
+                                            is_supercol_name=self.super,
+                                            slice_end=_SLICE_FINISH)
+        return super_column, column_start, column_finish
+
+    def _pack_name(self, value, is_supercol_name=False,
+            slice_end=_NON_SLICE):
         if not self.autopack_names:
             return value
         if value is None: return
@@ -180,6 +197,10 @@ class ColumnFamily(object):
             d_type = self.supercol_name_data_type
         else:
             d_type = self.col_name_data_type
+
+        if slice_end and d_type == 'TimeUUIDType':
+            value = self._convert_time_to_uuid(value,
+                    lowest_val=(slice_end == _SLICE_START))
 
         return self._pack(value, d_type)
 
@@ -213,11 +234,53 @@ class ColumnFamily(object):
             value = self._unpack(value, data_type)
         return value
 
+    def _convert_time_to_uuid(self, datetime, lowest_val):
+        """
+        Converts a datetime to a type 1 UUID.
+
+        This is to assist with getting a time slice of columns when the
+        column names are TimeUUID.
+
+        Parameters
+        ----------
+        datetime: datetime
+            - The time to use for the timestamp portion of the UUID.
+        lowest_val: boolean
+            - Whether the UUID produced should be the lowest possible value
+              UUID with the same timestamp as datetime or the highest possible
+              value.
+        """
+        if isinstance(datetime, uuid.UUID):
+            return datetime
+
+        import time
+        nanoseconds = int(time.mktime(datetime.timetuple()) * 1e9)
+        # 0x01b21dd213814000 is the number of 100-ns intervals between the
+        # UUID epoch 1582-10-15 00:00:00 and the Unix epoch 1970-01-01 00:00:00.
+        timestamp = int(nanoseconds/100) + 0x01b21dd213814000L
+
+        time_low = timestamp & 0xffffffffL
+        time_mid = (timestamp >> 32L) & 0xffffL
+        time_hi_version = (timestamp >> 48L) & 0x0fffL
+
+        if lowest_val:
+            # Make the lowest value UUID with the same timestamp
+            clock_seq_low = 0 & 0xffL
+            clock_seq_hi_variant = 0 & 0x3fL
+            node = 0 & 0xffffffffffffL # 48 bits
+        else:
+            # Make the highestt value UUID with the same timestamp
+            clock_seq_low = 0xffL
+            clock_seq_hi_variant = 0x3fL
+            node = 0xffffffffffffL # 48 bits
+        return uuid.UUID(fields=(time_low, time_mid, time_hi_version,
+                            clock_seq_hi_variant, clock_seq_low, node), version=1)
+
     def _pack(self, value, data_type):
         """
         Packs a value into the expected sequence of bytes that Cassandra expects.
         """
-        
+
         if data_type == 'LongType':
             return struct.pack('>q', long(value))  # q is 'long long'
         elif data_type == 'IntegerType':
@@ -231,7 +294,7 @@ class ColumnFamily(object):
             if not hasattr(value, 'bytes'):
                 raise TypeError("%s not valid for %s" % (value, data_type))
             return struct.pack('>16s', value.bytes)
-        else: 
+        else:
             return value
 
     def _unpack(self, b, data_type):
@@ -260,7 +323,7 @@ class ColumnFamily(object):
             super_column=None, read_consistency_level = None):
         """
         Fetch a key from a Cassandra server
-        
+
         Parameters
         ----------
         key : str
@@ -290,9 +353,8 @@ class ColumnFamily(object):
         else: {'column': 'value'}
         """
 
-        if super_column != '': super_column = self._pack_name(super_column, is_supercol_name=True)
-        if column_start != '': column_start = self._pack_name(column_start, is_supercol_name=self.super)
-        if column_finish != '': column_finish = self._pack_name(column_finish, is_supercol_name=self.super) 
+        super_column, column_start, column_finish = self._pack_slice_cols(
+                super_column, column_start, column_finish)
 
         packed_cols = None
         if columns is not None:
@@ -316,7 +378,7 @@ class ColumnFamily(object):
                           super_column=None, read_consistency_level=None):
         """
         Fetches a list of KeySlices from a Cassandra server based on an index clause
-        
+
         Parameters
         ----------
         index_clause : IndexClause
@@ -349,9 +411,8 @@ class ColumnFamily(object):
         else: {key : {column : value}}
         """
 
-        if super_column != '': super_column = self._pack_name(super_column, is_supercol_name=True)
-        if column_start != '': column_start = self._pack_name(column_start, is_supercol_name=self.super)
-        if column_finish != '': column_finish = self._pack_name(column_finish, is_supercol_name=self.super) 
+        (super_column, column_start, column_finish) = self._pack_slice_cols(
+                super_column, column_start, column_finish)
 
         packed_cols = None
         if columns is not None:
@@ -382,7 +443,7 @@ class ColumnFamily(object):
                  super_column=None, read_consistency_level = None):
         """
         Fetch multiple key from a Cassandra server
-        
+
         Parameters
         ----------
         keys : [str]
@@ -412,9 +473,8 @@ class ColumnFamily(object):
         else: {'key': {'column': 'value'}}
         """
 
-        if super_column != '': super_column = self._pack_name(super_column, is_supercol_name=True)
-        if column_start != '': column_start = self._pack_name(column_start, is_supercol_name=self.super)
-        if column_finish != '': column_finish = self._pack_name(column_finish, is_supercol_name=self.super) 
+        (super_column, column_start, column_finish) = self._pack_slice_cols(
+                super_column, column_start, column_finish)
 
         packed_cols = None
         if columns is not None:
@@ -471,7 +531,7 @@ class ColumnFamily(object):
                   super_column=None, read_consistency_level = None):
         """
         Get an iterator over keys in a specified range
-        
+
         Parameters
         ----------
         start : str
@@ -504,13 +564,9 @@ class ColumnFamily(object):
         iterator over ('key', {'column': 'value'})
         """
 
-        if super_column != '':
-            super_column = self._pack_name(super_column, is_supercol_name=True)
-        if column_start != '':
-            column_start = self._pack_name(column_start, is_supercol_name=self.super)
-        if column_finish != '':
-            column_finish = self._pack_name(column_finish, is_supercol_name=self.super)
-        
+        (super_column, column_start, column_finish) = self._pack_slice_cols(
+                super_column, column_start, column_finish)
+
         packed_cols = None
         if columns is not None:
             packed_cols = []
@@ -524,7 +580,7 @@ class ColumnFamily(object):
         count = 0
         i = 0
         last_key = start
-        
+
         buffer_size = self.buffer_size
         if row_count is not None:
             buffer_size = min(row_count, self.buffer_size)

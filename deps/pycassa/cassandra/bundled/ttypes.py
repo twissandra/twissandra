@@ -29,8 +29,8 @@ class ConsistencyLevel:
     ANY          Ensure that the write has been written once somewhere, including possibly being hinted in a non-target node.
     ONE          Ensure that the write has been written to at least 1 node's commit log and memory table
     QUORUM       Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes
-    DCQUORUM     Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes, within the local datacenter (requires DatacenterShardStrategy)
-    DCQUORUMSYNC Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes in each datacenter (requires DatacenterShardStrategy)
+    DCQUORUM     Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes, within the local datacenter (requires NetworkTopologyStrategy)
+    DCQUORUMSYNC Ensure that the write has been written to <ReplicationFactor> / 2 + 1 nodes in each datacenter (requires NetworkTopologyStrategy)
     ALL          Ensure that the write is written to <code>&lt;ReplicationFactor&gt;</code> nodes before responding to the client.
   
   Read:
@@ -72,13 +72,25 @@ class ConsistencyLevel:
 
 class IndexOperator:
   EQ = 0
+  GTE = 1
+  GT = 2
+  LTE = 3
+  LT = 4
 
   _VALUES_TO_NAMES = {
     0: "EQ",
+    1: "GTE",
+    2: "GT",
+    3: "LTE",
+    4: "LT",
   }
 
   _NAMES_TO_VALUES = {
     "EQ": 0,
+    "GTE": 1,
+    "GT": 2,
+    "LTE": 3,
+    "LT": 4,
   }
 
 class AccessLevel:
@@ -1796,7 +1808,7 @@ class TokenRange:
 
 class AuthenticationRequest:
   """
-  Authentication requests can contain any data, dependent on the AuthenticationBackend used
+  Authentication requests can contain any data, dependent on the IAuthenticator used
   
   Attributes:
    - credentials
