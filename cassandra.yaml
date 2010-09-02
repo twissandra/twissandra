@@ -3,7 +3,7 @@
 # explanations of configuration directives.
 
 # name of the cluster
-cluster_name: 'Twissandra Cluster'
+cluster_name: 'Test Cluster'
 
 # Set to true to make new [non-seed] nodes automatically migrate data
 # to themselves from the pre-existing nodes in the cluster.  Defaults
@@ -16,8 +16,11 @@ auto_bootstrap: false
 # See http://wiki.apache.org/cassandra/HintedHandoff
 hinted_handoff_enabled: true
 
-# authentication backend, implementing IAuthenticator; used to limit keyspace access
+# authentication backend, implementing IAuthenticator; used to identify users
 authenticator: org.apache.cassandra.auth.AllowAllAuthenticator
+
+# authorization backend, implementing IAuthority; used to limit access/provide permissions
+authority: org.apache.cassandra.auth.AllowAllAuthority
 
 # any IPartitioner may be used, including your own as long as it is on
 # the classpath.  Out of the box, Cassandra provides
@@ -88,6 +91,10 @@ thrift_framed_transport_size_in_mb: 15
 thrift_max_message_length_in_mb: 16
 
 snapshot_before_compaction: false
+
+# change this to increase the compaction thread's priority.  In java, 1 is the
+# lowest priority and that is our default.
+# compaction_thread_priority: 1
 
 # The threshold size in megabytes the binary memtable must grow to,
 # before it's submitted for flushing to disk.
