@@ -13,6 +13,8 @@ from cassandra import Cassandra
 from cassandra.constants import VERSION
 from cassandra.ttypes import AuthenticationRequest
 
+from batch import Mutator
+
 __all__ = ['connect', 'connect_thread_local', 'NoServerAvailable']
 
 DEFAULT_SERVER = 'localhost:9160'
@@ -233,3 +235,6 @@ class ThreadLocalConnection(object):
                 new_metadata[datum.name] = datum
             cf_def.column_metadata = new_metadata
         return cf_defs
+
+    def batch(self, *args, **kwargs):
+        return Mutator(self, *args, **kwargs)

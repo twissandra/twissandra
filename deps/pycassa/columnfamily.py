@@ -1,12 +1,13 @@
 from cassandra.ttypes import Column, ColumnOrSuperColumn, ColumnParent, \
     ColumnPath, ConsistencyLevel, NotFoundException, SlicePredicate, \
-    SliceRange, SuperColumn, Mutation, Deletion, Clock, KeyRange, \
-    IndexExpression, IndexClause
+    SliceRange, SuperColumn, Clock, KeyRange, IndexExpression, IndexClause
 
 import time
 import sys
 import uuid
 import struct
+
+from batch import CfMutator
 
 __all__ = ['gm_timestamp', 'ColumnFamily']
 _TYPES = ['BytesType', 'LongType', 'IntegerType', 'UTF8Type', 'AsciiType',
@@ -288,7 +289,11 @@ class ColumnFamily(object):
         elif data_type == 'AsciiType':
             return struct.pack(">%ds" % len(value), value)
         elif data_type == 'UTF8Type':
-            st = value.encode('utf-8')
+            try:
+                st = value.encode('utf-8')
+            except UnicodeDecodeError:
+                # value is already utf-8 encoded
+                st = value
             return struct.pack(">%ds" % len(st), st)
         elif data_type == 'TimeUUIDType' or data_type == 'LexicalUUIDType':
             if not hasattr(value, 'bytes'):
@@ -607,7 +612,8 @@ class ColumnFamily(object):
             last_key = key_slices[-1].key
             i += 1
 
-    def insert(self, key, columns, write_consistency_level=None):
+    def insert(self, key, columns, clock=None, ttl=None,
+               write_consistency_level=None):
         """
         Insert or update columns for a key
 
@@ -627,10 +633,10 @@ class ColumnFamily(object):
         -------
         int timestamp
         """
-        return self.batch_insert({key: columns},
-                                 write_consistency_level = write_consistency_level)
+        return self.batch_insert({key: columns}, clock=clock, ttl=ttl,
+                                 write_consistency_level=write_consistency_level)
 
-    def batch_insert(self, rows, write_consistency_level = None):
+    def batch_insert(self, rows, clock=None, ttl=None, write_consistency_level = None):
         """
         Insert or update columns for multiple keys
 
@@ -648,29 +654,10 @@ class ColumnFamily(object):
         int timestamp
         """
         clock = Clock(timestamp=self.timestamp())
-
-        mutation_map = {}
-
-        for row, cs in rows.iteritems():
-            cols = []
-
-            for c, v in cs.iteritems():
-                if self.super:
-                    subc = [Column(name=self._pack_name(subname), \
-                                       value=self._pack_value(subvalue, subname), clock=clock) \
-                                for subname, subvalue in v.iteritems()]
-                    column = SuperColumn(name=self._pack_name(c, is_supercol_name=True), columns=subc)
-                    cols.append(Mutation(column_or_supercolumn=ColumnOrSuperColumn(super_column=column)))
-                else:
-                    column = Column(name=self._pack_name(c), value=self._pack_value(v, c), clock=clock)
-                    cols.append(Mutation(column_or_supercolumn=ColumnOrSuperColumn(column=column)))
-
-            if cols:
-                mutation_map[row] = {self.column_family: cols}
-
-        self.client.batch_mutate(mutation_map,
-                                 self._wcl(write_consistency_level))
-
+        batch = self.batch(write_consistency_level=write_consistency_level)
+        for key, columns in rows.iteritems():
+            batch.insert(key, columns, clock=clock, ttl=ttl)
+        batch.send()
         return clock.timestamp
 
     def remove(self, key, columns=None, super_column=None, write_consistency_level = None):
@@ -693,30 +680,32 @@ class ColumnFamily(object):
         -------
         int timestamp
         """
-
-        packed_cols = None
-        if columns is not None:
-            packed_cols = []
-            for col in columns:
-                packed_cols.append(self._pack_name(col, is_supercol_name = self.super))
-
-        if super_column != '':
-            super_column = self._pack_name(super_column, is_supercol_name=True)
-
         clock = Clock(timestamp=self.timestamp())
-        if packed_cols is not None:
-            # Deletion doesn't support SliceRange predicates as of Cassandra 0.6.0,
-            # so we can't add column_start, column_finish, etc... yet
-            sp = SlicePredicate(column_names=packed_cols)
-            deletion = Deletion(clock=clock, super_column=super_column, predicate=sp)
-            mutation = Mutation(deletion=deletion)
-            self.client.batch_mutate({key: {self.column_family: [mutation]}},
-                                     self._wcl(write_consistency_level))
-        else:
-            cp = ColumnPath(column_family=self.column_family, super_column=super_column)
-            self.client.remove(key, cp, clock,
-                               self._wcl(write_consistency_level))
+        batch = self.batch(write_consistency_level=write_consistency_level)
+        batch.remove(key, columns, super_column, clock)
+        batch.send()
         return clock.timestamp
+
+    def batch(self, queue_size=100, write_consistency_level=None):
+        """
+        Create batch mutator for doing multiple insert,update,remove
+        operations using as few roundtrips as possible.
+
+        Parameters
+        ----------
+        queue_size : int
+            Max number of mutations per request
+        write_consistency_level: ConsistencyLevel
+            Consistency level used for mutations.
+
+        Returns
+        -------
+        CfMutator mutator
+        """
+        if write_consistency_level is None:
+            write_consistency_level = self.write_consistency_level
+        return CfMutator(self, queue_size=queue_size,
+                         write_consistency_level=write_consistency_level)
 
     def truncate(self):
         """
