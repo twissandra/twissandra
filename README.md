@@ -24,7 +24,7 @@ install the project:
 
 ### Check out the latest Cassandra source code
 
-    curl -O http://download.filehat.com/apache/cassandra/0.6.1/apache-cassandra-0.6.1-bin.tar.gz
+    git clone git://git.apache.org/cassandra.git
 
 ### Check out the Twissandra source code
 
@@ -32,10 +32,10 @@ install the project:
 
 ### Install and configure Cassandra
 
-Now untar cassandra
+Now build Cassandra:
 
-    tar xvfz apache-cassandra-0.6.1-bin.tar.gz
-    cd apache-cassandra-0.6.1
+    cd cassandra
+    ant
 
 Then we need to create our database directories on disk:
 
@@ -55,6 +55,10 @@ Finally we can start Cassandra:
 
 This will run the Cassandra database (configured for Twissandra) in the
 foreground, so to continue, we'll need to open a new terminal.
+
+Finally we need to load the Twissandra schema into the database:
+
+    ./bin/schematool 127.0.0.1 8080 import
 
 ### Install Thrift
 
