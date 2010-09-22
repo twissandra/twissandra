@@ -22,8 +22,8 @@ def timeline(request):
         return HttpResponseRedirect(reverse('timeline'))
     start = request.GET.get('start')
     if request.user['is_authenticated']:
-        tweets,next = cass.get_timeline(request.session['username'], start=start,
-            limit=NUM_PER_PAGE)
+        tweets,next = cass.get_timeline(request.session['username'],
+            start=start, limit=NUM_PER_PAGE)
     else:
         tweets,next = cass.get_userline(cass.PUBLIC_USERLINE_KEY, start=start,
             limit=NUM_PER_PAGE)

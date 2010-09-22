@@ -68,19 +68,20 @@ def _get_line(cf, username, start, limit):
     """
     # First we need to get the raw timeline (in the form of tweet ids)
 
-    # We get one more tweet than asked for, and if we exceed the limit by doing so,
-    #  that tweet's key (timestamp) is returned as the 'next' key for pagination.
+    # We get one more tweet than asked for, and if we exceed the limit by doing
+    # so, that tweet's key (timestamp) is returned as the 'next' key for
+    # pagination.
     start = long(start) if start else ''
     next = None
     try:
-        timeline = cf.get(str(username), column_start=start, column_count=limit + 1,
-            column_reversed=True)
+        timeline = cf.get(str(username), column_start=start,
+            column_count=limit + 1, column_reversed=True)
     except NotFoundException:
         return [], next
 
     if len(timeline) > limit:
-        # Find the minimum timestamp from our get (the oldest one), and convert it
-        #  to a non-floating value.
+        # Find the minimum timestamp from our get (the oldest one), and convert
+        # it to a non-floating value.
         oldest_timestamp = min(timeline.keys())
 
         # Present the string version of the oldest_timestamp for the UI...
@@ -90,10 +91,12 @@ def _get_line(cf, username, start, limit):
         #  if from timeline.
         del timeline[oldest_timestamp]
 
-    # Now we do a multiget to get the tweets themselves, comes back in random order
+    # Now we do a multiget to get the tweets themselves, which comes back in
+    # random order
     unordered_tweets = TWEET.multiget(timeline.values())
     # Order the tweets in the order we got back from the timeline
-    ordered_tweets   = [unordered_tweets.get(tweet_id) for tweet_id in timeline.values()]
+    ordered_tweets   = [unordered_tweets.get(tweet_id)
+        for tweet_id in timeline.values()]
 
     # We want to get the information about the user who made the tweet
     # First, pull out the list of unique users for our tweets
@@ -119,7 +122,8 @@ def get_user_by_username(username):
 
 def get_friend_usernames(username, count=5000):
     """
-    Given a username, gets the usernames of the people that the user is following.
+    Given a username, gets the usernames of the people that the user is
+    following.
     """
     return _get_friend_or_follower_usernames(FRIENDS, username, count)
 

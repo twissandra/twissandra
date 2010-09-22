@@ -43,7 +43,8 @@ def logout(request):
 def find_friends(request):
     friend_usernames = []
     if request.user['is_authenticated']:
-        friend_usernames = cass.get_friend_usernames(request.session['username']) + [request.session['username']]
+        friend_usernames = cass.get_friend_usernames(
+            request.session['username']) + [request.session['username']]
     q = request.GET.get('q')
     result = None
     searched = False
@@ -69,10 +70,16 @@ def modify_friend(request):
     removed = False
     if request.user['is_authenticated']:
         if 'add-friend' in request.POST:
-            cass.add_friends(request.session['username'], [request.POST['add-friend']])
+            cass.add_friends(
+                request.session['username'],
+                [request.POST['add-friend']]
+            )
             added = True
         if 'remove-friend' in request.POST:
-            cass.remove_friends(request.session['username'], [request.POST['remove-friend']])
+            cass.remove_friends(
+                request.session['username'],
+                [request.POST['remove-friend']]
+            )
             removed = True
     if next:
         return HttpResponseRedirect(next)
