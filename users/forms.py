@@ -19,7 +19,7 @@ class LoginForm(forms.Form):
             raise forms.ValidationError(u'Invalid username and/or password')
         return self.cleaned_data
 
-    def get_uname(self):
+    def get_username(self):
         return self.cleaned_data['username']
     
 

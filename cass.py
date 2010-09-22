@@ -7,8 +7,8 @@ import pycassa
 
 from pycassa.cassandra.ttypes import NotFoundException
 
-__all__ = ['get_user_by_username', 'get_friend_unames',
-    'get_follower_unames', 'get_users_for_usernames', 'get_friends',
+__all__ = ['get_user_by_username', 'get_friend_usernames',
+    'get_follower_usernames', 'get_users_for_usernames', 'get_friends',
     'get_followers', 'get_timeline', 'get_userline', 'get_tweet', 'save_user',
     'save_tweet', 'add_friends', 'remove_friends', 'DatabaseError',
     'NotFound', 'InvalidDictionary', 'PUBLIC_USERLINE_KEY']
@@ -52,17 +52,17 @@ class NotFound(DatabaseError):
 class InvalidDictionary(DatabaseError):
     pass
 
-def _get_friend_or_follower_unames(cf, uname, count):
+def _get_friend_or_follower_usernames(cf, username, count):
     """
     Gets the social graph (friends or followers) for a username.
     """
     try:
-        friends = cf.get(str(uname), column_count=count)
+        friends = cf.get(str(username), column_count=count)
     except NotFoundException:
         return []
     return friends.keys()
 
-def _get_line(cf, uname, start, limit):
+def _get_line(cf, username, start, limit):
     """
     Gets a timeline or a userline given a username, a start, and a limit.
     """
@@ -73,7 +73,7 @@ def _get_line(cf, uname, start, limit):
     start = long(start) if start else ''
     next = None
     try:
-        timeline = cf.get(str(uname), column_start=start, column_count=limit + 1,
+        timeline = cf.get(str(username), column_start=start, column_count=limit + 1,
             column_reversed=True)
     except NotFoundException:
         return [], next
@@ -97,74 +97,74 @@ def _get_line(cf, uname, start, limit):
 
     # We want to get the information about the user who made the tweet
     # First, pull out the list of unique users for our tweets
-    usernames = list(set([tweet['uname'] for tweet in ordered_tweets]))
+    usernames = list(set([tweet['username'] for tweet in ordered_tweets]))
     users = USER.multiget(usernames)
     # Then attach the user record to the tweet
     for tweet in ordered_tweets:
-        tweet['user'] = users.get(tweet['uname'])
+        tweet['user'] = users.get(tweet['username'])
     return (ordered_tweets, next)
 
 
 # QUERYING APIs
 
-def get_user_by_username(uname):
+def get_user_by_username(username):
     """
     Given a username, this gets the user record.
     """
     try:
-        user = USER.get(str(uname))
+        user = USER.get(str(username))
     except NotFoundException:
-        raise NotFound('User %s not found' % (uname,))
+        raise NotFound('User %s not found' % (username,))
     return user
 
-def get_friend_unames(uname, count=5000):
+def get_friend_usernames(username, count=5000):
     """
     Given a username, gets the usernames of the people that the user is following.
     """
-    return _get_friend_or_follower_unames(FRIENDS, uname, count)
+    return _get_friend_or_follower_usernames(FRIENDS, username, count)
 
-def get_follower_unames(uname, count=5000):
+def get_follower_usernames(username, count=5000):
     """
     Given a username, gets the usernames of the people following that user.
     """
-    return _get_friend_or_follower_unames(FOLLOWERS, uname, count)
+    return _get_friend_or_follower_usernames(FOLLOWERS, username, count)
 
-def get_users_for_usernames(unames):
+def get_users_for_usernames(usernames):
     """
     Given a list of usernames, this gets the associated user object for each
     one.
     """
     try:
-        users = USER.multiget(map(str, unames))
+        users = USER.multiget(map(str, usernames))
     except NotFoundException:
-        raise NotFound('Users %s not found' % (unames,))
+        raise NotFound('Users %s not found' % (usernames,))
     return users.values()
 
-def get_friends(uname, count=5000):
+def get_friends(username, count=5000):
     """
     Given a username, gets the people that the user is following.
     """
-    friend_unames = get_friend_unames(uname, count=count)
-    return get_users_for_user_unames(friend_unames)
+    friend_usernames = get_friend_usernames(username, count=count)
+    return get_users_for_user_usernames(friend_usernames)
 
-def get_followers(uname, count=5000):
+def get_followers(username, count=5000):
     """
     Given a username, gets the people following that user.
     """
-    follower_unames = get_follower_unames(uname, count=count)
-    return get_users_for_user_unames(follower_unames)
+    follower_usernames = get_follower_usernames(username, count=count)
+    return get_users_for_user_usernames(follower_usernames)
 
-def get_timeline(uname, start=None, limit=40):
+def get_timeline(username, start=None, limit=40):
     """
     Given a username, get their tweet timeline (tweets from people they follow).
     """
-    return _get_line(TIMELINE, uname, start, limit)
+    return _get_line(TIMELINE, username, start, limit)
 
-def get_userline(uname, start=None, limit=40):
+def get_userline(username, start=None, limit=40):
     """
     Given a username, get their userline (their tweets).
     """
-    return _get_line(USERLINE, uname, start, limit)
+    return _get_line(USERLINE, username, start, limit)
 
 def get_tweet(tweet_id):
     """
@@ -190,13 +190,13 @@ def get_tweets_for_tweet_ids(tweet_ids):
 
 # INSERTING APIs
 
-def save_user(uname, user):
+def save_user(username, user):
     """
     Saves the user record.
     """
-    USER.insert(str(uname), user)
+    USER.insert(str(username), user)
 
-def save_tweet(tweet_id, uname, tweet):
+def save_tweet(tweet_id, username, tweet):
     """
     Saves the tweet record.
     """
@@ -205,28 +205,28 @@ def save_tweet(tweet_id, uname, tweet):
 
     # Insert the tweet, then into the user's timeline, then into the public one
     TWEET.insert(str(tweet_id), tweet)
-    USERLINE.insert(str(uname), {ts: str(tweet_id)})
+    USERLINE.insert(str(username), {ts: str(tweet_id)})
     USERLINE.insert(PUBLIC_USERLINE_KEY, {ts: str(tweet_id)})
     # Get the user's followers, and insert the tweet into all of their streams
-    follower_unames = [uname] + get_follower_unames(uname)
-    for follower_uname in follower_unames:
-        TIMELINE.insert(str(follower_uname), {ts: str(tweet_id)})
+    follower_usernames = [username] + get_follower_usernames(username)
+    for follower_username in follower_usernames:
+        TIMELINE.insert(str(follower_username), {ts: str(tweet_id)})
 
-def add_friends(from_uname, to_unames):
+def add_friends(from_username, to_usernames):
     """
     Adds a friendship relationship from one user to some others.
     """
     ts = str(int(time.time() * 1e6))
-    dct = OrderedDict(((str(uname), ts) for uname in to_unames))
-    FRIENDS.insert(str(from_uname), dct)
-    for to_uname in to_unames:
-        FOLLOWERS.insert(str(to_uname), {str(from_uname): ts})
+    dct = OrderedDict(((str(username), ts) for username in to_usernames))
+    FRIENDS.insert(str(from_username), dct)
+    for to_username in to_usernames:
+        FOLLOWERS.insert(str(to_username), {str(from_username): ts})
 
-def remove_friends(from_uname, to_unames):
+def remove_friends(from_username, to_usernames):
     """
     Removes a friendship relationship from one user to some others.
     """
-    for uname in to_unames:
-        FRIENDS.remove(str(from_uname), column=str(uname))
-    for to_uname in to_unames:
-        FOLLOWERS.remove(str(to_uname), column=str(to_uname))
+    for username in to_usernames:
+        FRIENDS.remove(str(from_username), column=str(username))
+    for to_username in to_usernames:
+        FOLLOWERS.remove(str(to_username), column=str(to_username))

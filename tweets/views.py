@@ -15,14 +15,14 @@ def timeline(request):
     form = TweetForm(request.POST or None)
     if request.user['is_authenticated'] and form.is_valid():
         tweet_id = str(uuid.uuid1())
-        cass.save_tweet(tweet_id, request.session['uname'], {
-            'uname': request.session['uname'],
+        cass.save_tweet(tweet_id, request.session['username'], {
+            'username': request.session['username'],
             'body': form.cleaned_data['body'],
         })
         return HttpResponseRedirect(reverse('timeline'))
     start = request.GET.get('start')
     if request.user['is_authenticated']:
-        tweets,next = cass.get_timeline(request.session['uname'], start=start,
+        tweets,next = cass.get_timeline(request.session['username'], start=start,
             limit=NUM_PER_PAGE)
     else:
         tweets,next = cass.get_userline(cass.PUBLIC_USERLINE_KEY, start=start,
@@ -53,13 +53,13 @@ def userline(request, username=None):
         raise Http404
     
     # Query for the friend ids
-    friend_unames = []
+    friend_usernames = []
     if request.user['is_authenticated']:
-        friend_unames = cass.get_friend_unames(username) + [username]
+        friend_usernames = cass.get_friend_usernames(username) + [username]
     
     # Add a property on the user to indicate whether the currently logged-in
     # user is friends with the user
-    user['friend'] = username in friend_unames
+    user['friend'] = username in friend_usernames
     
     start = request.GET.get('start')
     tweets,next = cass.get_userline(username, start=start, limit=NUM_PER_PAGE)
@@ -68,7 +68,7 @@ def userline(request, username=None):
         'username': username,
         'tweets': tweets,
         'next': next,
-        'friend_unames': friend_unames,
+        'friend_usernames': friend_usernames,
     }
     return render_to_response('tweets/userline.html', context,
         context_instance=RequestContext(request))

@@ -1,9 +1,9 @@
 import cass
 
 def get_user(request):
-    if 'uname' in request.session:
+    if 'username' in request.session:
         try:
-            user = cass.get_user_by_username(request.session['uname'])
+            user = cass.get_user_by_username(request.session['username'])
             user['is_authenticated'] = True
             return user
         except cass.DatabaseError:

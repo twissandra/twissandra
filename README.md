@@ -131,7 +131,7 @@ Tweets are stored with a tweet id for the key.
 
     Tweet = {
         '7561a442-24e2-11df-8924-001ff3591711': {
-            'uname': 'hermes',
+            'username': 'hermes',
             'body': 'Trying out Twissandra. This is awesome!',
         },
     }
