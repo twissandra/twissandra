@@ -52,20 +52,6 @@ class NotFound(DatabaseError):
 class InvalidDictionary(DatabaseError):
     pass
 
-
-def _long(i):
-    """
-    Packs a long into the expected sequence of bytes that Cassandra expects.
-    """
-    return struct.pack('>d', long(i))
-
-def _unlong(b):
-    """
-    Unpacks Cassandra's byte-representation of longs into their Python long
-    equivalents.
-    """
-    return struct.unpack('>d', b)
-
 def _get_friend_or_follower_unames(cf, uname, count):
     """
     Gets the social graph (friends or followers) for a username.
@@ -84,29 +70,25 @@ def _get_line(cf, uname, start, limit):
 
     # We get one more tweet than asked for, and if we exceed the limit by doing so,
     #  that tweet's key (timestamp) is returned as the 'next' key for pagination.
-    start = _long(start) if start else ''
+    start = long(start) if start else ''
     next = None
     try:
         timeline = cf.get(str(uname), column_start=start, column_count=limit + 1,
             column_reversed=True)
     except NotFoundException:
-        return []
+        return [], next
 
     if len(timeline) > limit:
-        # Convert the packed keys back to longs so we can compare them and not
-        #   worry about endianness (in case someone runs this on SPARC? Sure).
-        py_timestamps = map(lambda x: x[0], map(_unlong, timeline.keys()))
-
         # Find the minimum timestamp from our get (the oldest one), and convert it
         #  to a non-floating value.
-        oldest_timestamp = long(min(py_timestamps))
+        oldest_timestamp = min(timeline.keys())
 
         # Present the string version of the oldest_timestamp for the UI...
         next = str(oldest_timestamp)
 
         # And then convert the pylong back to a bitpacked key so we can delete
         #  if from timeline.
-        del timeline[_long(oldest_timestamp)]
+        del timeline[oldest_timestamp]
 
     # Now we do a multiget to get the tweets themselves, comes back in random order
     unordered_tweets = TWEET.multiget(timeline.values())
@@ -219,7 +201,7 @@ def save_tweet(tweet_id, uname, tweet):
     Saves the tweet record.
     """
     # Generate a timestamp for the USER/TIMELINE
-    ts = _long(time.time() * 1e6)
+    ts = long(time.time() * 1e6)
 
     # Insert the tweet, then into the user's timeline, then into the public one
     TWEET.insert(str(tweet_id), tweet)
