@@ -102,9 +102,10 @@ def _get_line(cf, username, start, limit):
     # First, pull out the list of unique users for our tweets
     usernames = list(set([tweet['username'] for tweet in ordered_tweets]))
     users = USER.multiget(usernames)
-    # Then attach the user record to the tweet
+    # Then attach the user record to the tweet, and decode the body properly
     for tweet in ordered_tweets:
         tweet['user'] = users.get(tweet['username'])
+        tweet['body'] = tweet['body'].decode('utf-8')
     return (ordered_tweets, next)
 
 
@@ -175,9 +176,10 @@ def get_tweet(tweet_id):
     Given a tweet id, this gets the entire tweet record.
     """
     try:
-        tweet = TWEET.get(str(tweet_id))
+        tweet = TWEET.get(str(tweet_id)).decode('utf-8')
     except NotFoundException:
         raise NotFound('Tweet %s not found' % (tweet_id,))
+    tweet['body'] = tweet['body'].decode('utf-8')
     return tweet
 
 def get_tweets_for_tweet_ids(tweet_ids):
@@ -206,6 +208,9 @@ def save_tweet(tweet_id, username, tweet):
     """
     # Generate a timestamp for the USER/TIMELINE
     ts = long(time.time() * 1e6)
+
+    # Make sure the tweet body is utf-8 encoded
+    tweet['body'] = tweet['body'].encode('utf-8')
 
     # Insert the tweet, then into the user's timeline, then into the public one
     TWEET.insert(str(tweet_id), tweet)
