@@ -1,3 +1,5 @@
 Django
 simplejson
 thrift
+ordereddict
+-e git+git://github.com/pycassa/pycassa.git#egg=pycassa

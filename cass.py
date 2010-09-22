@@ -1,7 +1,7 @@
 import struct
 import time
 
-from odict import OrderedDict
+from ordereddict import OrderedDict
 
 import pycassa
 
