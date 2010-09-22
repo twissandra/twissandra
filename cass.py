@@ -149,14 +149,14 @@ def get_friends(username, count=5000):
     Given a username, gets the people that the user is following.
     """
     friend_usernames = get_friend_usernames(username, count=count)
-    return get_users_for_user_usernames(friend_usernames)
+    return get_users_for_usernames(friend_usernames)
 
 def get_followers(username, count=5000):
     """
     Given a username, gets the people following that user.
     """
     follower_usernames = get_follower_usernames(username, count=count)
-    return get_users_for_user_usernames(follower_usernames)
+    return get_users_for_usernames(follower_usernames)
 
 def get_timeline(username, start=None, limit=40):
     """
