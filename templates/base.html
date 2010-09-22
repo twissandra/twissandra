@@ -20,7 +20,7 @@
         	        <li><a href="{% url publicline %}">Public</a></li>
         	        <li><a href="{% url find_friends %}">Find Friends</a></li>
         	        {% if request.user.is_authenticated %}
-        	            <li><a href="{% url logout %}">Sign out of {{ request.session.uname }}</a></li>
+        	            <li><a href="{% url logout %}">Sign out of {{ request.session.username }}</a></li>
         	        {% else %}
         	            <li><a href="{% url login %}">Login</a></li>
         	        {% endif %}

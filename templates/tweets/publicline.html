@@ -7,7 +7,7 @@
     <ul id="timeline" class="grid_9 alpha">
         {% for tweet in tweets %}
             <li>
-                <a href="{% url userline tweet.uname %}" class="username">{{ tweet.uname }}</a>
+                <a href="{% url userline tweet.username %}" class="username">{{ tweet.username }}</a>
                 <span class="body">{{ tweet.body|urlize }}</span>
             </li>
         {% empty %}
