@@ -1,4 +1,3 @@
-import struct
 import time
 
 from ordereddict import OrderedDict
