@@ -175,7 +175,7 @@ def get_tweet(tweet_id):
     Given a tweet id, this gets the entire tweet record.
     """
     try:
-        tweet = TWEET.get(str(tweet_id)).decode('utf-8')
+        tweet = TWEET.get(str(tweet_id))
     except NotFoundException:
         raise NotFound('Tweet %s not found' % (tweet_id,))
     tweet['body'] = tweet['body'].decode('utf-8')
