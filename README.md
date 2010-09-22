@@ -44,21 +44,9 @@ Then we need to create our database directories on disk:
     sudo mkdir -p /var/lib/cassandra
     sudo chown -R `whoami` /var/lib/cassandra
 
-Now we copy the Cassandra configuration from the Twissandra source tree, and
-put it in its proper place in the Cassandra directory structure:
-
-    cp ../twissandra/cassandra.yaml conf/
-
 Finally we can start Cassandra:
 
     ./bin/cassandra -f
-
-This will run the Cassandra database (configured for Twissandra) in the
-foreground, so to continue, we'll need to open a new terminal.
-
-Finally we need to load the Twissandra schema into the database:
-
-    ./bin/schematool 127.0.0.1 8080 import
 
 ### Install Thrift
 
@@ -88,11 +76,18 @@ Now let's install all of the dependencies:
 Now that we've got all of our dependencies installed, we're ready to start up
 the server.
 
-### Start up the webserver
+### Create the schema
 
-Make sure you're in the Twissandra checkout, and then start up the server:
+Make sure you're in the Twissandra checkout, and then run the sync_cassandra
+command to create the proper keyspace in Cassandra:
 
     cd twissandra
+    python manage.py sync_cassandra
+
+### Start up the webserver
+
+This is the fun part! We're done setting everything up, we just need to run it:
+
     python manage.py runserver
 
 Now go to http://127.0.0.1:8000/ and you can play with Twissandra!
