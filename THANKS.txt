@@ -1,2 +1,3 @@
 Justin Lilly - For making the css look good
 Eric Evans - For updating the code for Cassandra 0.7.X
+John Hermes - For making this project much more friendly for beginners
