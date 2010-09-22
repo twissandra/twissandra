@@ -14,16 +14,16 @@ def login(request):
         if request.POST['kind'] == 'login':
             login_form = LoginForm(request.POST)
             if login_form.is_valid():
-                user_id = login_form.get_user_id()
-                request.session['user_id'] = user_id
+                uname = login_form.get_uname()
+                request.session['uname'] = uname
                 if next:
                     return HttpResponseRedirect(next)
                 return HttpResponseRedirect('/')
         elif request.POST['kind'] == 'register':
             register_form = RegistrationForm(request.POST)
             if register_form.is_valid():
-                user_id = register_form.save()
-                request.session['user_id'] = user_id
+                username = register_form.save()
+                request.session['uname'] = username
                 if next:
                     return HttpResponseRedirect(next)
                 return HttpResponseRedirect('/')
@@ -36,15 +36,14 @@ def login(request):
         context_instance=RequestContext(request))
 
 def logout(request):
-    request.session.pop('user_id', None)
+    request.session.pop('uname', None)
     return render_to_response('users/logout.html', {},
         context_instance=RequestContext(request))
 
 def find_friends(request):
-    friend_ids = []
+    friend_unames = []
     if request.user['is_authenticated']:
-        friend_ids = cass.get_friend_ids(request.user['id']) + [
-            request.user['id']]
+        friend_unames = cass.get_friend_unames(request.session['uname']) + [request.session['uname']]
     q = request.GET.get('q')
     result = None
     searched = False
@@ -52,14 +51,14 @@ def find_friends(request):
         searched = True
         try:
             result = cass.get_user_by_username(q)
-            result['friend'] = result['id'] in friend_ids
+            result['friend'] = q in friend_unames
         except cass.DatabaseError:
             pass
     context = {
         'q': q,
         'result': result,
         'searched': searched,
-        'friend_ids': friend_ids,
+        'friend_unames': friend_unames,
     }
     return render_to_response('users/add_friends.html', context,
         context_instance=RequestContext(request))
@@ -70,10 +69,10 @@ def modify_friend(request):
     removed = False
     if request.user['is_authenticated']:
         if 'add-friend' in request.POST:
-            cass.add_friends(request.user['id'], [request.POST['add-friend']])
+            cass.add_friends(request.session['uname'], [request.POST['add-friend']])
             added = True
         if 'remove-friend' in request.POST:
-            cass.remove_friends(request.user['id'], [request.POST['remove-friend']])
+            cass.remove_friends(request.session['uname'], [request.POST['remove-friend']])
             removed = True
     if next:
         return HttpResponseRedirect(next)

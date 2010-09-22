@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}{{ user.username }} - {{ block.super }}{% endblock %}
+{% block title %}{{ username }} - {{ block.super }}{% endblock %}
 
 {% block content %}
-    <h2 class="grid_4 suffix_5">{{ user.username }}&rsquo;s Timeline</h2>
+    <h2 class="grid_4 suffix_5">{{ username }}&rsquo;s Timeline</h2>
     <ul id="timeline" class="grid_9 alpha">
         {% for tweet in tweets %}
             <li>
-                <a href="{% url userline tweet.user.username %}" class="username">{{ tweet.user.username }}</a>
+                <a href="{% url userline tweet.uname %}" class="username">{{ tweet.uname }}</a>
                 <span class="body">{{ tweet.body|urlize }}</span>
             </li>
         {% empty %}
@@ -29,7 +29,7 @@
         {% endifnotequal %}
     {% else %}
         <a href="{% url login %}?next={{ request.path }}&q={{ q }}">
-            Login to add {{ user.username }} as a friend
+            Login to add {{ username }} as a friend
         </a>
     {% endif %}
 {% endblock %}
