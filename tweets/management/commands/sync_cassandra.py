@@ -9,7 +9,6 @@ class Command(NoArgsCommand):
         # First we define all our column families
         column_families = [
             CfDef('Twissandra', 'User', comparator_type='UTF8Type'),
-            CfDef('Twissandra', 'Username', comparator_type='BytesType'),
             CfDef('Twissandra', 'Friends', comparator_type='BytesType'),
             CfDef('Twissandra', 'Followers', comparator_type='BytesType'),
             CfDef('Twissandra', 'Tweet', comparator_type='UTF8Type'),

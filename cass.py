@@ -15,7 +15,6 @@ __all__ = ['get_user_by_username', 'get_friend_usernames',
 CLIENT = pycassa.connect('Twissandra')
 
 USER = pycassa.ColumnFamily(CLIENT, 'User', dict_class=OrderedDict)
-USERNAME = pycassa.ColumnFamily(CLIENT, 'Username', dict_class=OrderedDict)
 FRIENDS = pycassa.ColumnFamily(CLIENT, 'Friends', dict_class=OrderedDict)
 FOLLOWERS = pycassa.ColumnFamily(CLIENT, 'Followers', dict_class=OrderedDict)
 TWEET = pycassa.ColumnFamily(CLIENT, 'Tweet', dict_class=OrderedDict)
