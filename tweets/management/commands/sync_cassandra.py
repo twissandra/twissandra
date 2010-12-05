@@ -1,36 +1,17 @@
 import pycassa
-from pycassa.cassandra.ttypes import KsDef, CfDef
+from pycassa.system_manager import *
 
 from django.core.management.base import NoArgsCommand
 
 class Command(NoArgsCommand):
 
     def handle_noargs(self, **options):
-        # First we define all our column families
-        column_families = [
-            CfDef('Twissandra', 'User', comparator_type='UTF8Type'),
-            CfDef('Twissandra', 'Username', comparator_type='BytesType'),
-            CfDef('Twissandra', 'Friends', comparator_type='BytesType'),
-            CfDef('Twissandra', 'Followers', comparator_type='BytesType'),
-            CfDef('Twissandra', 'Tweet', comparator_type='UTF8Type'),
-            CfDef('Twissandra', 'Timeline', comparator_type='LongType'),
-            CfDef('Twissandra', 'Userline', comparator_type='LongType'),
-        ]
-        # Now we define our keyspace (with column families inside)
-        keyspace = KsDef(
-            'Twissandra', # Keyspace Name
-            'org.apache.cassandra.locator.SimpleStrategy', # Placement Strat.
-            {}, # Options for the Placement Strat.
-            1, # Replication factor
-            column_families,
-        )
-        
-        client = pycassa.connect('system')
-
+        sys = SystemManager()
+ 
         # If there is already a Twissandra keyspace, we have to ask the user
         # what they want to do with it.
         try:
-            client.describe_keyspace('Twissandra')
+            sys.describe_keyspace('Twissandra')
             # If there were a keyspace, it would have raised an exception.
             msg = 'Looks like you already have a Twissandra keyspace.\nDo you '
             msg += 'want to delete it and recreate it? All current data will '
@@ -39,9 +20,17 @@ class Command(NoArgsCommand):
             if not resp or resp[0] != 'y':
                 print "Ok, then we're done here."
                 return
-            client.system_drop_keyspace('Twissandra')
+            sys.drop_keyspace('Twissandra')
         except pycassa.NotFoundException:
             pass
-        
-        client.system_add_keyspace(keyspace)
+              
+        sys.create_keyspace('Twissandra', replication_factor=1)
+        sys.create_column_family('Twissandra', 'User', comparator_type=UTF8_TYPE)
+        sys.create_column_family('Twissandra', 'Username', comparator_type=BYTES_TYPE)
+        sys.create_column_family('Twissandra', 'Friends', comparator_type=BYTES_TYPE)
+        sys.create_column_family('Twissandra', 'Followers', comparator_type=BYTES_TYPE)
+        sys.create_column_family('Twissandra', 'Tweet', comparator_type=UTF8_TYPE)
+        sys.create_column_family('Twissandra', 'Timeline', comparator_type=LONG_TYPE)
+        sys.create_column_family('Twissandra', 'Userline', comparator_type=LONG_TYPE)
+
         print 'All done!'

@@ -1,7 +1,5 @@
 import time
 
-from ordereddict import OrderedDict
-
 import pycassa
 
 from pycassa.cassandra.ttypes import NotFoundException
@@ -12,15 +10,15 @@ __all__ = ['get_user_by_username', 'get_friend_usernames',
     'save_tweet', 'add_friends', 'remove_friends', 'DatabaseError',
     'NotFound', 'InvalidDictionary', 'PUBLIC_USERLINE_KEY']
 
-CLIENT = pycassa.connect('Twissandra')
+POOL = pycassa.connect('Twissandra')
 
-USER = pycassa.ColumnFamily(CLIENT, 'User', dict_class=OrderedDict)
-USERNAME = pycassa.ColumnFamily(CLIENT, 'Username', dict_class=OrderedDict)
-FRIENDS = pycassa.ColumnFamily(CLIENT, 'Friends', dict_class=OrderedDict)
-FOLLOWERS = pycassa.ColumnFamily(CLIENT, 'Followers', dict_class=OrderedDict)
-TWEET = pycassa.ColumnFamily(CLIENT, 'Tweet', dict_class=OrderedDict)
-TIMELINE = pycassa.ColumnFamily(CLIENT, 'Timeline', dict_class=OrderedDict)
-USERLINE = pycassa.ColumnFamily(CLIENT, 'Userline', dict_class=OrderedDict)
+USER = pycassa.ColumnFamily(POOL, 'User')
+USERNAME = pycassa.ColumnFamily(POOL, 'Username')
+FRIENDS = pycassa.ColumnFamily(POOL, 'Friends')
+FOLLOWERS = pycassa.ColumnFamily(POOL, 'Followers')
+TWEET = pycassa.ColumnFamily(POOL, 'Tweet')
+TIMELINE = pycassa.ColumnFamily(POOL, 'Timeline')
+USERLINE = pycassa.ColumnFamily(POOL, 'Userline')
 
 # NOTE: Having a single userline key to store all of the public tweets is not
 #       scalable.  Currently, Cassandra requires that an entire row (meaning
@@ -225,7 +223,7 @@ def add_friends(from_username, to_usernames):
     Adds a friendship relationship from one user to some others.
     """
     ts = str(int(time.time() * 1e6))
-    dct = OrderedDict(((str(username), ts) for username in to_usernames))
+    dct = pycassa.util.OrderedDict(((str(username), ts) for username in to_usernames))
     FRIENDS.insert(str(from_username), dct)
     for to_username in to_usernames:
         FOLLOWERS.insert(str(to_username), {str(from_username): ts})
