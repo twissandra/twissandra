@@ -13,7 +13,6 @@ __all__ = ['get_user_by_username', 'get_friend_usernames',
 POOL = pycassa.connect('Twissandra')
 
 USER = pycassa.ColumnFamily(POOL, 'User')
-USERNAME = pycassa.ColumnFamily(POOL, 'Username')
 FRIENDS = pycassa.ColumnFamily(POOL, 'Friends')
 FOLLOWERS = pycassa.ColumnFamily(POOL, 'Followers')
 TWEET = pycassa.ColumnFamily(POOL, 'Tweet')
@@ -91,18 +90,22 @@ def _get_line(cf, username, start, limit):
     # Now we do a multiget to get the tweets themselves, which comes back in
     # random order
     unordered_tweets = TWEET.multiget(timeline.values())
-    # Order the tweets in the order we got back from the timeline
-    ordered_tweets   = [unordered_tweets.get(tweet_id)
-        for tweet_id in timeline.values()]
 
     # We want to get the information about the user who made the tweet
     # First, pull out the list of unique users for our tweets
-    usernames = list(set([tweet['username'] for tweet in ordered_tweets]))
+    usernames = list(set([tweet['username'] for tweet in unordered_tweets.values()]))
     users = USER.multiget(usernames)
-    # Then attach the user record to the tweet, and decode the body properly
-    for tweet in ordered_tweets:
+
+    # Then, create an ordered list of tweets with the user record and id
+    # attached, and the body decoded properly.
+    ordered_tweets = list()
+    for tweet_id in timeline.values():
+        tweet = unordered_tweets.get(tweet_id)
         tweet['user'] = users.get(tweet['username'])
         tweet['body'] = tweet['body'].decode('utf-8')
+        tweet['id'] = tweet_id
+        ordered_tweets.append(tweet)
+    
     return (ordered_tweets, next)
 
 

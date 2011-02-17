@@ -22,7 +22,6 @@ class Command(NoArgsCommand):
 
         sys.create_keyspace('Twissandra', replication_factor=1)
         sys.create_column_family('Twissandra', 'User', comparator_type=UTF8_TYPE)
-        sys.create_column_family('Twissandra', 'Username', comparator_type=BYTES_TYPE)
         sys.create_column_family('Twissandra', 'Friends', comparator_type=BYTES_TYPE)
         sys.create_column_family('Twissandra', 'Followers', comparator_type=BYTES_TYPE)
         sys.create_column_family('Twissandra', 'Tweet', comparator_type=UTF8_TYPE)
