@@ -87,26 +87,25 @@ def _get_line(cf, username, start, limit):
         #  if from timeline.
         del timeline[oldest_timestamp]
 
-    # Now we do a multiget to get the tweets themselves, which comes back in
-    # random order
-    unordered_tweets = TWEET.multiget(timeline.values())
+    # Now we do a multiget to get the tweets themselves
+    tweet_ids = timeline.values()
+    tweets = TWEET.multiget(tweet_ids)
 
     # We want to get the information about the user who made the tweet
     # First, pull out the list of unique users for our tweets
-    usernames = list(set([tweet['username'] for tweet in unordered_tweets.values()]))
+    usernames = list(set([tweet['username'] for tweet in tweets.values()]))
     users = USER.multiget(usernames)
 
-    # Then, create an ordered list of tweets with the user record and id
+    # Then, create a list of tweets with the user record and id
     # attached, and the body decoded properly.
-    ordered_tweets = list()
-    for tweet_id in timeline.values():
-        tweet = unordered_tweets.get(tweet_id)
+    result_tweets = list()
+    for tweet_id, tweet in tweets.iteritems():
         tweet['user'] = users.get(tweet['username'])
         tweet['body'] = tweet['body'].decode('utf-8')
         tweet['id'] = tweet_id
-        ordered_tweets.append(tweet)
-    
-    return (ordered_tweets, next)
+        result_tweets.append(tweet)
+
+    return (result_tweets, next)
 
 
 # QUERYING APIs
