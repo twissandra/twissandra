@@ -1,4 +1,4 @@
 Django
 simplejson
-thrift05
+thrift
 pycassa
