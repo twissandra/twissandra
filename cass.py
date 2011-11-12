@@ -234,7 +234,6 @@ def remove_friends(from_username, to_usernames):
     """
     Removes a friendship relationship from one user to some others.
     """
-    for username in to_usernames:
-        FRIENDS.remove(str(from_username), column=str(username))
+    FRIENDS.remove(str(from_username), columns=map(str, to_usernames))
     for to_username in to_usernames:
-        FOLLOWERS.remove(str(to_username), column=str(to_username))
+        FOLLOWERS.remove(str(to_username), columns=[str(from_username)])
