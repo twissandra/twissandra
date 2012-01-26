@@ -1,7 +1,7 @@
 import time
 
-import pycassa
-
+from pycassa.pool import ConnectionPool
+from pycassa.columnfamily import ColumnFamily
 from pycassa.cassandra.ttypes import NotFoundException
 
 __all__ = ['get_user_by_username', 'get_friend_usernames',
@@ -10,14 +10,14 @@ __all__ = ['get_user_by_username', 'get_friend_usernames',
     'save_tweet', 'add_friends', 'remove_friends', 'DatabaseError',
     'NotFound', 'InvalidDictionary', 'PUBLIC_USERLINE_KEY']
 
-POOL = pycassa.connect('Twissandra')
+POOL = ConnectionPool('Twissandra')
 
-USER = pycassa.ColumnFamily(POOL, 'User')
-FRIENDS = pycassa.ColumnFamily(POOL, 'Friends')
-FOLLOWERS = pycassa.ColumnFamily(POOL, 'Followers')
-TWEET = pycassa.ColumnFamily(POOL, 'Tweet')
-TIMELINE = pycassa.ColumnFamily(POOL, 'Timeline')
-USERLINE = pycassa.ColumnFamily(POOL, 'Userline')
+USER = ColumnFamily(POOL, 'User')
+FRIENDS = ColumnFamily(POOL, 'Friends')
+FOLLOWERS = ColumnFamily(POOL, 'Followers')
+TWEET = ColumnFamily(POOL, 'Tweet')
+TIMELINE = ColumnFamily(POOL, 'Timeline')
+USERLINE = ColumnFamily(POOL, 'Userline')
 
 # NOTE: Having a single userline key to store all of the public tweets is not
 #       scalable.  Currently, Cassandra requires that an entire row (meaning
@@ -225,7 +225,7 @@ def add_friends(from_username, to_usernames):
     Adds a friendship relationship from one user to some others.
     """
     ts = str(int(time.time() * 1e6))
-    dct = pycassa.util.OrderedDict(((str(username), ts) for username in to_usernames))
+    dct = dict((str(username), ts) for username in to_usernames)
     FRIENDS.insert(str(from_username), dct)
     for to_username in to_usernames:
         FOLLOWERS.insert(str(to_username), {str(from_username): ts})
