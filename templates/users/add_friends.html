@@ -15,13 +15,13 @@
                     <p>Hooray, your friend {{ q }} is on the site!</p>
                     {% if request.user.is_authenticated %}
                         {% ifnotequal request.session.username q %}
-                            <form method="POST" action="{% url modify_friend %}?next={{ request.path }}{% if q %}&amp;q={{ q }}{% endif %}">
+                            <form method="POST" action="{% url 'modify_friend' %}?next={{ request.path }}{% if q %}&amp;q={{ q }}{% endif %}">
                                 <input type="hidden" name="{% if result.friend %}remove{% else %}add{% endif %}-friend" value="{{ q }}" />
                                 <input type="submit" value="{% if result.friend %}Remove{% else %}Add{% endif %} Friend" />
                             </form>
                         {% endifnotequal %}
                     {% else %}
-                        <a href="{% url login %}?next={{ request.path }}&amp;q={{ q }}">
+                        <a href="{% url 'login' %}?next={{ request.path }}&amp;q={{ q }}">
                             Login to add {{ q }} as a friend
                         </a>
                     {% endif %}
