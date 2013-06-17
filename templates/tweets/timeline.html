@@ -17,7 +17,7 @@
     <ul id="timeline" class="grid_9 alpha">
         {% for tweet in tweets %}
             <li>
-                <a href="{% url userline tweet.username %}" class="username">{{ tweet.username }}</a>
+                <a href="{% url 'userline' tweet.username %}" class="username">{{ tweet.username }}</a>
                 <span class="body">{{ tweet.body|urlize }}</span>
             </li>
         {% empty %}
@@ -31,6 +31,6 @@
 
 {% block sidebar %}
     {% if not request.user.is_authenticated %}
-        <a href="{% url login %}">Log in to post a tweet</a>
+        <a href="{% url 'login' %}">Log in to post a tweet</a>
     {% endif %}
 {% endblock %}
