@@ -3,4 +3,3 @@ simplejson
 thrift
 pycassa
 loremipsum
-numpy
