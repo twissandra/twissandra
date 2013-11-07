@@ -2,3 +2,4 @@ Django
 simplejson
 thrift
 pycassa
+loremipsum

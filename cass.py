@@ -201,12 +201,15 @@ def save_user(username, user):
     """
     USER.insert(str(username), user)
 
-def save_tweet(tweet_id, username, tweet):
+def save_tweet(tweet_id, username, tweet, timestamp=None):
     """
     Saves the tweet record.
     """
     # Generate a timestamp for the USER/TIMELINE
-    ts = long(time.time() * 1e6)
+    if not timestamp:
+        ts = long(time.time() * 1e6)
+    else:
+        ts = timestamp
 
     # Make sure the tweet body is utf-8 encoded
     tweet['body'] = tweet['body'].encode('utf-8')

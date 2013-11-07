@@ -159,3 +159,15 @@ name is a timestamp, and the column value is the tweet id:
             1267414319522925: '02ccb5ec-24e3-11df-8924-001ff3591711',
         },
     }
+
+
+## Fake data generation
+
+For testing purposes, you can populate the database with some fake tweets.
+
+    python manage.py fake_data <num_users> <max_tweets>
+
+`num_users` is the total number of users to generate and `max_tweets` is the
+maximum number of tweets per user. The number of tweets per user is determined
+by the Pareto distribution so the number of tweets actually generated will vary
+between runs.
