@@ -12,9 +12,6 @@ from django.core.management.base import BaseCommand
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        self.words = filter(lambda x: len(x) <= 4,
-                open('/usr/share/dict/words', 'r'))
-
         # Oldest account is 10 years
         origin = int(time.time() + datetime.timedelta(days=365.25 * 10)
                 .total_seconds() * 1e6)
@@ -29,8 +26,8 @@ class Command(BaseCommand):
         num_tweets = [int(x * normalizer) for x in sample]
 
         for i in range(num_users):
-            username = self.get_username()
-            cass.save_user(username, {'password': self.get_password()})
+            username = self.get_random_string()
+            cass.save_user(username, {'password': self.get_random_string()})
             creation_date = random.randint(origin, now)
 
             for _ in range(num_tweets[i % max_tweets]):
@@ -39,12 +36,8 @@ class Command(BaseCommand):
                     'body': self.get_tweet(),
                 }, timestamp=random.randint(creation_date, now))
 
-    def get_username(self):
-        return filter(lambda x: x in string.letters + string.digits,
-                ''.join(random.sample(self.words, 2)))
-
     def get_tweet(self):
         return loremipsum.get_sentence()
 
-    def get_password(self):
+    def get_random_string(self):
         return ''.join(random.sample(string.letters, 10))
