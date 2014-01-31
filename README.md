@@ -26,7 +26,7 @@ install the project:
 
 ### Install and configure Cassandra
 
-Follow the instructions for [http://wiki.apache.org/cassandra/GettingStarted](installing and setting up Cassandra).
+Follow the instructions for [installing and setting up Cassandra](http://wiki.apache.org/cassandra/GettingStarted).
 
 And then make sure Cassandra is running:
 
