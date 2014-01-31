@@ -15,16 +15,10 @@ checking out Cassandra and Twissandra, doing a little configuration, and
 then starting it up.  Here's a roadmap of the steps we're going to take to
 install the project:
 
-1. Check out the latest Cassandra source code
-2. Check out the Twissandra source code
-3. Install and configure Cassandra
-4. Install Thrift
-5. Create a virtual Python environment with Twissandra's dependencies
-6. Start up the webserver
-
-### Check out the latest Cassandra source code
-
-    git clone git://git.apache.org/cassandra.git
+1. Check out the Twissandra source code
+2. Install and configure Cassandra
+3. Create a virtual Python environment with Twissandra's dependencies
+4. Start up the webserver
 
 ### Check out the Twissandra source code
 
@@ -32,25 +26,11 @@ install the project:
 
 ### Install and configure Cassandra
 
-Now build Cassandra:
+Follow the instructions for [http://wiki.apache.org/cassandra/GettingStarted](installing and setting up Cassandra).
 
-    cd cassandra
-    ant
+And then make sure Cassandra is running:
 
-Then we need to create our database directories on disk:
-
-    sudo mkdir -p /var/log/cassandra
-    sudo chown -R `whoami` /var/log/cassandra
-    sudo mkdir -p /var/lib/cassandra
-    sudo chown -R `whoami` /var/lib/cassandra
-
-Finally we can start Cassandra:
-
-    ./bin/cassandra -f
-
-### Install Thrift
-
-Follow the instructions [provided on the Thrift website itself](http://wiki.apache.org/thrift/ThriftInstallation)
+    bin/cassandra -f
 
 ### Create a virtual Python environment with Twissandra's dependencies
 
