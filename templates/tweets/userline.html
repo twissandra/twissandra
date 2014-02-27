@@ -23,8 +23,8 @@
     {% if request.user.is_authenticated %}
         {% ifnotequal request.user.id user.id %}
             <form method="POST" action="{% url 'modify_friend' %}?next={{ request.path }}">
-                <input type="hidden" name="{% if 'user.friend' %}remove{% else %}add{% endif %}-friend" value="{{ user.id }}" />
-                <input type="submit" value="{% if 'user.friend' %}Remove{% else %}Add{% endif %} Friend" />
+                <input type="hidden" name="{% if is_friend %}remove{% else %}add{% endif %}-friend" value="{{ user.id }}" />
+                <input type="submit" value="{% if is_friend %}Remove{% else %}Add{% endif %} Friend" />
             </form>
         {% endifnotequal %}
     {% else %}

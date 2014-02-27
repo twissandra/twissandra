@@ -32,13 +32,13 @@ def login(request):
         'register_form': register_form,
         'next': next,
     }
-    return render_to_response('users/login.html', context,
-        context_instance=RequestContext(request))
+    return render_to_response(
+        'users/login.html', context, context_instance=RequestContext(request))
 
 def logout(request):
     request.session.pop('username', None)
-    return render_to_response('users/logout.html', {},
-        context_instance=RequestContext(request))
+    return render_to_response(
+        'users/logout.html', {}, context_instance=RequestContext(request))
 
 def find_friends(request):
     friend_usernames = []
@@ -52,7 +52,10 @@ def find_friends(request):
         searched = True
         try:
             result = cass.get_user_by_username(q)
-            result['friend'] = q in friend_usernames
+            result = {
+                'username': result.username,
+                'friend': q in friend_usernames
+            }
         except cass.DatabaseError:
             pass
     context = {
@@ -61,8 +64,8 @@ def find_friends(request):
         'searched': searched,
         'friend_usernames': friend_usernames,
     }
-    return render_to_response('users/add_friends.html', context,
-        context_instance=RequestContext(request))
+    return render_to_response(
+        'users/add_friends.html', context, context_instance=RequestContext(request))
 
 def modify_friend(request):
     next = request.REQUEST.get('next')
@@ -87,5 +90,5 @@ def modify_friend(request):
         'added': added,
         'removed': removed,
     }
-    return render_to_response('users/modify_friend.html', context,
-        context_instance=RequestContext(request))
+    return render_to_response(
+        'users/modify_friend.html', context, context_instance=RequestContext(request))

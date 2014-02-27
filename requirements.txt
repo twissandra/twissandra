@@ -1,5 +1,4 @@
-Django
+Django==1.5.5
 simplejson
-thrift
-pycassa
+cassandra-driver
 loremipsum

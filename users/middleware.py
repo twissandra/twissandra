@@ -4,8 +4,11 @@ def get_user(request):
     if 'username' in request.session:
         try:
             user = cass.get_user_by_username(request.session['username'])
-            user['is_authenticated'] = True
-            return user
+            return {
+                'username': user.username,
+                'password': user.password,
+                'is_authenticated': True
+            }
         except cass.DatabaseError:
             pass
     return {

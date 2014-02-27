@@ -13,8 +13,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # Oldest account is 10 years
-        origin = int(time.time() + datetime.timedelta(days=365.25 * 10)
-                .total_seconds() * 1e6)
+        origin = int(
+            time.time() +
+            datetime.timedelta(days=365.25 * 10).total_seconds() * 1e6)
         now = int(time.time() * 1e6)
 
         num_users = int(args[0])
@@ -27,14 +28,13 @@ class Command(BaseCommand):
 
         for i in range(num_users):
             username = self.get_random_string()
-            cass.save_user(username, {'password': self.get_random_string()})
+            cass.save_user(username, self.get_random_string())
             creation_date = random.randint(origin, now)
 
             for _ in range(num_tweets[i % max_tweets]):
-                cass.save_tweet(str(uuid.uuid1()), username, {
-                    'username': username,
-                    'body': self.get_tweet(),
-                }, timestamp=random.randint(creation_date, now))
+                cass.save_tweet(uuid.uuid1(), username, self.get_tweet(), timestamp=random.randint(creation_date, now))
+
+            print "created user"
 
     def get_tweet(self):
         return loremipsum.get_sentence()
