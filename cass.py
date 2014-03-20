@@ -4,22 +4,14 @@ import random
 
 from cassandra.cluster import Cluster
 
-__all__ = ['get_user_by_username', 'get_friend_usernames',
-           'get_follower_usernames', 'get_users_for_usernames', 'get_friends',
-           'get_followers', 'get_timeline', 'get_userline', 'get_tweet', 'save_user',
-           'save_tweet', 'add_friends', 'remove_friends', 'DatabaseError',
-           'NotFound', 'InvalidDictionary', 'PUBLIC_USERLINE_KEY']
-
 CLUSTER = Cluster(['127.0.0.1'])
 SESSION = CLUSTER.connect('twissandra')
 
 # NOTE: Having a single userline key to store all of the public tweets is not
-#       scalable.  Currently, Cassandra requires that an entire row (meaning
-#       every column under a given key) to be able to fit in memory.  You can
-#       imagine that after a while, the entire public timeline would exceed
-#       available memory.
+#       scalable.  This result in all public tweets being stored in a single
+#       partition, which means they must all fit on a single node.
 #
-#       The fix for this is to partition the timeline by time, so we could use
+#       One fix for this is to partition the timeline by time, so we could use
 #       a key like !PUBLIC!2010-04-01 to partition it per day.  We could drill
 #       down even further into hourly keys, etc.  Since this is a demonstration
 #       and that would add quite a bit of extra code, this excercise is left to
@@ -50,6 +42,7 @@ def _get_line(table, username, start, limit):
     # First we need to get the raw timeline (in the form of tweet ids)
     query = "SELECT time, tweet_id FROM {table} WHERE username=%s {time_clause} LIMIT %s"
 
+    # See if we need to start our page at the beginning or further back
     if not start:
         time_clause = ''
         params = (username, limit)
@@ -63,12 +56,12 @@ def _get_line(table, username, start, limit):
     if not results:
         return [], None
 
+    # If we didn't get to the end, return a starting point for the next page
     if len(results) == limit:
-        # Find the minimum timestamp from our get (the oldest one), and convert
-        # it to a non-floating value.
+        # Find the oldest ID
         oldest_timeuuid = min(row.time for row in results)
 
-        # Present the string version of the oldest_timeuuid for the UI...
+        # Present the string version of the oldest_timeuuid for the UI
         next_timeuuid = oldest_timeuuid.urn[len('urn:uuid:'):]
     else:
         next_timeuuid = None
@@ -114,7 +107,7 @@ def get_follower_usernames(username, count=5000):
     rows = SESSION.execute(
         "SELECT follower FROM followers WHERE username=%s LIMIT %s",
         (username, count))
-    return [row['follower'] for row in rows]
+    return [row.follower for row in rows]
 
 
 def get_users_for_usernames(usernames):
@@ -211,7 +204,7 @@ def save_user(username, password):
 
 
 def _timestamp_to_uuid(time_arg):
-    # TODO: once this is in the Cassandra driver, use that
+    # TODO: once this is in the python Cassandra driver, use that
     microseconds = int(time_arg * 1e6)
     timestamp = int(microseconds * 10) + 0x01b21dd213814000L
 
@@ -232,10 +225,10 @@ def save_tweet(tweet_id, username, tweet, timestamp=None):
     """
     Saves the tweet record.
     """
-    if timestamp:
-        now = _timestamp_to_uuid(timestamp)
-    else:
+    if timestamp is None:
         now = uuid1()
+    else:
+        now = _timestamp_to_uuid(timestamp)
 
     # Insert the tweet, then into the user's timeline, then into the public one
     SESSION.execute(
