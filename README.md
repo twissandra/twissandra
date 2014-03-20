@@ -61,7 +61,6 @@ the server.
 Make sure you're in the Twissandra checkout, and then run the sync_cassandra
 command to create the proper keyspace in Cassandra:
 
-    cd twissandra
     python manage.py sync_cassandra
 
 ### Start up the webserver
@@ -75,70 +74,64 @@ Now go to http://127.0.0.1:8000/ and you can play with Twissandra!
 ## Schema Layout
 
 In Cassandra, the way that your data is structured is very closely tied to how
-how it will be retrieved.  Let's start with the user ColumnFamily. The key is
-a username, and the columns are the properties on the user:
+how it will be retrieved.  Let's start with the 'users' table. The key is
+the username, and the remaining columns are properties on the user:
 
-    User = {
-        'hermes': {
-            'password': '****',
-            (other properties),
-        },
-    }
+    CREATE TABLE users (
+        username text PRIMARY KEY,
+        password text
+    )
 
-Friends and followers are keyed by the username, and then the columns are the
-friend names and follower names, and we store a timestamp as the value because
-it's interesting information to have:
-    
-    Friends = {
-        'hermes': {
-            # friend id: timestamp of when the friendship was added
-            'larry': '1267413962580791',
-            'curly': '1267413990076949',
-            'moe'  : '1267414008133277',
-        },
-    }
-    
-    Followers = {
-        'hermes': {
-            # friend id: timestamp of when the followership was added
-            'larry': '1267413962580791',
-            'curly': '1267413990076949',
-            'moe'  : '1267414008133277',
-        },
-    }
+The 'friends' and 'followers' tables have a compound primary key. The first
+component, the "partition key", controls how the data is spread around the
+cluster.  The second component, the "clustering key", controls how the data
+is sorted on disk.  In this case, the sort order isn't very interesting,
+but what's important is that all friends and all followers of a user will be
+stored contiguously on disk, making a query to lookup all friends or followers
+of a user very efficient.
 
-Tweets are stored with a tweet id for the key.
+    CREATE TABLE friends (
+        username text,
+        friend text,
+        since timestamp,
+        PRIMARY KEY (username, friend)
+    )
 
-    Tweet = {
-        '7561a442-24e2-11df-8924-001ff3591711': {
-            'username': 'hermes',
-            'body': 'Trying out Twissandra. This is awesome!',
-        },
-    }
+    CREATE TABLE followers (
+        username text,
+        follower text,
+        since timestamp,
+        PRIMARY KEY (username, follower)
+    )
 
-The Timeline and Userline column families keep track of which tweets should
-appear, and in what order.  To that effect, the key is the username, the column
-name is a timestamp, and the column value is the tweet id:
+Tweets are stored with a UUID for the key.
 
-    Timeline = {
-        'hermes': {
-            # timestamp of tweet: tweet id
-            1267414247561777: '7561a442-24e2-11df-8924-001ff3591711',
-            1267414277402340: 'f0c8d718-24e2-11df-8924-001ff3591711',
-            1267414305866969: 'f9e6d804-24e2-11df-8924-001ff3591711',
-            1267414319522925: '02ccb5ec-24e3-11df-8924-001ff3591711',
-        },
-    }
-    
-    Userline = {
-        'hermes': {
-            # timestamp of tweet: tweet id
-            1267414247561777: '7561a442-24e2-11df-8924-001ff3591711',
-            1267414277402340: 'f0c8d718-24e2-11df-8924-001ff3591711',
-            1267414305866969: 'f9e6d804-24e2-11df-8924-001ff3591711',
-            1267414319522925: '02ccb5ec-24e3-11df-8924-001ff3591711',
-        },
-    }
+    CREATE TABLE tweets (
+        tweet_id uuid PRIMARY KEY,
+        username text,
+        body text
+    )
+
+The 'timeline' and 'userline' tables keep track of what tweets were
+made and in what order.  To acheive this, we use a TimeUUID for the
+clustering key, resulting in tweets being stored in chronological
+order.  The "WITH CLUSERING ORDER" option just means that the
+tweets will be stored in reverse chronological order (newest first),
+which is slightly more efficient for the queries we'll be performing.
+
+    CREATE TABLE userline (
+        username text,
+        time timeuuid,
+        tweet_id uuid,
+        PRIMARY KEY (username, time)
+    ) WITH CLUSTERING ORDER BY (time DESC)
+
+    CREATE TABLE timeline (
+        username text,
+        time timeuuid,
+        tweet_id uuid,
+        PRIMARY KEY (username, time)
+    ) WITH CLUSTERING ORDER BY (time DESC)
 
 
 ## Fake data generation
