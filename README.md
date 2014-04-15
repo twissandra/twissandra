@@ -27,6 +27,7 @@ install the project:
 ### Install and configure Cassandra
 
 Follow the instructions for [installing and setting up Cassandra](http://wiki.apache.org/cassandra/GettingStarted).
+Note, Twissandra requires **at-least Cassandra 2.0** or later.
 
 And then make sure Cassandra is running:
 
