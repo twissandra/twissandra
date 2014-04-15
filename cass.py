@@ -122,7 +122,6 @@ def get_friend_usernames(username, count=5000):
     """
     global get_friends_query
     if get_friends_query is None:
-        # view get_follower_usernames' issue with LIMIT below.
         get_friends_query = session.prepare("""
             SELECT friend FROM friends WHERE username=? LIMIT ?
             """)
@@ -141,11 +140,6 @@ def get_follower_usernames(username, count=5000):
             SELECT follower FROM followers WHERE username=? LIMIT ?
             """)
 
-    # todo, currently the above limit clause param isn't binded and causes :
-    # Exception Type: SyntaxException at /
-    # Exception Value: <ErrorMessage code=2000
-    # [Syntax error in CQL query]
-    # line 2:66 mismatched input '?' expecting INTEGER"
     rows = session.execute(get_followers_query, (username, count))
     return [row.follower for row in rows]
 
