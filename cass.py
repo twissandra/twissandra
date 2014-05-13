@@ -7,6 +7,20 @@ from cassandra.cluster import Cluster
 cluster = Cluster(['127.0.0.1'])
 session = cluster.connect('twissandra')
 
+# Prepared statements, reuse as much as possible by binding new values
+tweets_query = None
+userline_query = None
+timeline_query = None
+friends_query = None
+followers_query = None
+remove_friends_query = None
+remove_followers_query = None
+add_user_query = None
+get_tweets_query = None
+get_usernames_query = None
+get_followers_query = None
+get_friends_query = None
+
 # NOTE: Having a single userline key to store all of the public tweets is not
 #       scalable.  This result in all public tweets being stored in a single
 #       partition, which means they must all fit on a single node.
@@ -39,6 +53,12 @@ def _get_line(table, username, start, limit):
     """
     Gets a timeline or a userline given a username, a start, and a limit.
     """
+    global get_tweets_query
+    if get_tweets_query is None:
+        get_tweets_query = session.prepare("""
+            SELECT * FROM tweets WHERE tweet_id=?
+            """)
+
     # First we need to get the raw timeline (in the form of tweet ids)
     query = "SELECT time, tweet_id FROM {table} WHERE username=%s {time_clause} LIMIT %s"
 
@@ -70,7 +90,7 @@ def _get_line(table, username, start, limit):
     futures = []
     for row in results:
         futures.append(session.execute_async(
-            "SELECT * FROM tweets WHERE tweet_id=%s", (row.tweet_id, )))
+            get_tweets_query, (row.tweet_id,)))
 
     tweets = [f.result()[0] for f in futures]
     return (tweets, next_timeuuid)
@@ -82,7 +102,13 @@ def get_user_by_username(username):
     """
     Given a username, this gets the user record.
     """
-    rows = session.execute("SELECT * FROM users WHERE username=%s", (username, ))
+    global get_usernames_query
+    if get_usernames_query is None:
+        get_usernames_query = session.prepare("""
+            SELECT * FROM users WHERE username=?
+            """)
+
+    rows = session.execute(get_usernames_query, (username,))
     if not rows:
         raise NotFound('User %s not found' % (username,))
     else:
@@ -94,9 +120,13 @@ def get_friend_usernames(username, count=5000):
     Given a username, gets the usernames of the people that the user is
     following.
     """
-    rows = session.execute(
-        "SELECT friend FROM friends WHERE username=%s LIMIT %s",
-        (username, count))
+    global get_friends_query
+    if get_friends_query is None:
+        get_friends_query = session.prepare("""
+            SELECT friend FROM friends WHERE username=? LIMIT ?
+            """)
+
+    rows = session.execute(get_friends_query, (username, count))
     return [row.friend for row in rows]
 
 
@@ -104,9 +134,13 @@ def get_follower_usernames(username, count=5000):
     """
     Given a username, gets the usernames of the people following that user.
     """
-    rows = session.execute(
-        "SELECT follower FROM followers WHERE username=%s LIMIT %s",
-        (username, count))
+    global get_followers_query
+    if get_followers_query is None:
+        get_followers_query = session.prepare("""
+            SELECT follower FROM followers WHERE username=? LIMIT ?
+            """)
+
+    rows = session.execute(get_followers_query, (username, count))
     return [row.follower for row in rows]
 
 
@@ -115,9 +149,15 @@ def get_users_for_usernames(usernames):
     Given a list of usernames, this gets the associated user object for each
     one.
     """
+    global get_usernames_query
+    if get_usernames_query is None:
+        get_usernames_query = session.prepare("""
+            SELECT * FROM users WHERE username=?
+            """)
+
     futures = []
     for user in usernames:
-        future = session.execute_async("SELECT * FROM users WHERE username=%s", (user, ))
+        future = session.execute_async(get_usernames_query, (user, ))
         futures.append(future)
 
     users = []
@@ -164,7 +204,13 @@ def get_tweet(tweet_id):
     """
     Given a tweet id, this gets the entire tweet record.
     """
-    results = session.execute("SELECT * FROM tweets WHERE tweet_id=%s", (tweet_id, ))
+    global get_tweets_query
+    if get_tweets_query is None:
+        get_tweets_query = session.prepare("""
+            SELECT * FROM tweets WHERE tweet_id=?
+            """)
+
+    results = session.execute(get_tweets_query, (tweet_id, ))
     if not results:
         raise NotFound('Tweet %s not found' % (tweet_id,))
     else:
@@ -176,10 +222,15 @@ def get_tweets_for_tweet_ids(tweet_ids):
     Given a list of tweet ids, this gets the associated tweet object for each
     one.
     """
+    global get_tweets_query
+    if get_tweets_query is None:
+        get_tweets_query = session.prepare("""
+            SELECT * FROM tweets WHERE tweet_id=?
+            """)
+
     futures = []
     for tweet_id in tweet_ids:
-        futures.append(session.execute_async(
-            "SELECT * FROM tweets WHERE tweet_id=%s", (tweet_id, )))
+        futures.append(session.execute_async(get_tweets_query, (tweet_id,)))
 
     tweets = []
     for tweet_id, future in zip(tweet_id, futures):
@@ -198,9 +249,14 @@ def save_user(username, password):
     """
     Saves the user record.
     """
-    session.execute(
-        "INSERT INTO users (username, password) VALUES (%s, %s)",
-        (username, password))
+    global add_user_query
+    if add_user_query is None:
+        add_user_query = session.prepare("""
+            INSERT INTO users (username, password)
+            VALUES (?, ?)
+            """)
+
+    session.execute(add_user_query, (username, password))
 
 
 def _timestamp_to_uuid(time_arg):
@@ -225,31 +281,49 @@ def save_tweet(tweet_id, username, tweet, timestamp=None):
     """
     Saves the tweet record.
     """
+
+    global tweets_query
+    global userline_query
+    global timeline_query
+
+    # Prepare the statements required for adding the tweet into the various timelines
+    # Initialise only once, and then re-use by binding new values
+    if tweets_query is None:
+        tweets_query = session.prepare("""
+            INSERT INTO tweets (tweet_id, username, body)
+            VALUES (?, ?, ?)
+            """)
+
+    if userline_query is None:
+        userline_query = session.prepare("""
+            INSERT INTO userline (username, time, tweet_id)
+            VALUES (?, ?, ?)
+            """)
+
+    if timeline_query is None:
+        timeline_query = session.prepare("""
+            INSERT INTO timeline (username, time, tweet_id)
+            VALUES (?, ?, ?)
+            """)
+
     if timestamp is None:
         now = uuid1()
     else:
         now = _timestamp_to_uuid(timestamp)
 
-    # Insert the tweet, then into the user's timeline, then into the public one
-    session.execute(
-        "INSERT INTO tweets (tweet_id, username, body) VALUES (%s, %s, %s)",
-        (tweet_id, username, tweet))
-
-    session.execute(
-        "INSERT INTO userline (username, time, tweet_id) VALUES (%s, %s, %s)",
-        (username, now, tweet_id))
-
-    session.execute(
-        "INSERT INTO userline (username, time, tweet_id) VALUES (%s, %s, %s)",
-        (PUBLIC_USERLINE_KEY, now, tweet_id))
+    # Insert the tweet
+    session.execute(tweets_query, (tweet_id, username, tweet,))
+    # Insert tweet into the user's timeline
+    session.execute(userline_query, (username, now, tweet_id,))
+    # Insert tweet into the public timeline
+    session.execute(userline_query, (PUBLIC_USERLINE_KEY, now, tweet_id,))
 
     # Get the user's followers, and insert the tweet into all of their streams
     futures = []
     follower_usernames = [username] + get_follower_usernames(username)
     for follower_username in follower_usernames:
         futures.append(session.execute_async(
-            "INSERT INTO timeline (username, time, tweet_id) VALUES (%s, %s, %s)",
-            (follower_username, now, tweet_id)))
+            timeline_query, (follower_username, now, tweet_id,)))
 
     for future in futures:
         future.result()
@@ -259,16 +333,30 @@ def add_friends(from_username, to_usernames):
     """
     Adds a friendship relationship from one user to some others.
     """
+    global friends_query
+    global followers_query
+
+    if friends_query is None:
+        friends_query = session.prepare("""
+            INSERT INTO friends (username, friend, since)
+            VALUES (?, ?, ?)
+            """)
+
+    if followers_query is None:
+        followers_query = session.prepare("""
+            INSERT INTO followers (username, follower, since)
+            VALUES (?, ?, ?)
+            """)
+
     now = datetime.utcnow()
     futures = []
     for to_user in to_usernames:
+        # Start following user
         futures.append(session.execute_async(
-            "INSERT INTO friends (username, friend, since) VALUES (%s, %s, %s)",
-            (from_username, to_user, now)))
-
+            friends_query, (from_username, to_user, now,)))
+        # Add yourself as a follower of the user
         futures.append(session.execute_async(
-            "INSERT INTO followers (username, follower, since) VALUES (%s, %s, %s)",
-            (to_user, from_username, now)))
+            followers_query, (to_user, from_username, now,)))
 
     for future in futures:
         future.result()
@@ -278,15 +366,24 @@ def remove_friends(from_username, to_usernames):
     """
     Removes a friendship relationship from one user to some others.
     """
+    global remove_friends_query
+    global remove_followers_query
+
+    if remove_friends_query is None:
+        remove_friends_query = session.prepare("""
+            DELETE FROM friends WHERE username=? AND friend=?
+            """)
+    if remove_followers_query is None:
+        remove_followers_query = session.prepare("""
+            DELETE FROM followers WHERE username=? AND follower=?
+            """)
+
     futures = []
     for to_user in to_usernames:
         futures.append(session.execute_async(
-            "DELETE FROM friends WHERE username=%s AND friend=%s",
-            (from_username, to_user)))
-
+            remove_friends_query, (from_username, to_user,)))
         futures.append(session.execute_async(
-            "DELETE FROM followers WHERE username=%s AND follower=%s",
-            (to_user, from_username)))
+            remove_followers_query, (to_user, from_username,)))
 
     for future in futures:
         future.result()
