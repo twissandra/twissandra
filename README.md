@@ -112,7 +112,7 @@ Tweets are stored with a UUID for the key.
     )
 
 The 'timeline' and 'userline' tables keep track of what tweets were
-made and in what order.  To acheive this, we use a TimeUUID for the
+made and in what order.  To achieve this, we use a TimeUUID for the
 clustering key, resulting in tweets being stored in chronological
 order.  The "WITH CLUSERING ORDER" option just means that the
 tweets will be stored in reverse chronological order (newest first),
